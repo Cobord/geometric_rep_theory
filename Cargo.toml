@@ -1,0 +1,8 @@
+[package]
+name = "quivers"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+nonempty = "0.12.0"
+petgraph = "0.8.3"
