@@ -9,6 +9,7 @@ use petgraph::{graph::NodeIndex, prelude::EdgeIndex, stable_graph::StableGraph, 
 
 use crate::checked_arith::Ring;
 
+#[derive(Debug)]
 #[must_use]
 pub struct Quiver<VertexLabel, EdgeLabel>
 where
@@ -296,9 +297,46 @@ where
                 (e_label, v_label)
             })
     }
+
+    #[allow(clippy::missing_panics_doc)]
+    pub fn double(
+        mut self,
+        dagger: impl Fn(&EdgeLabel) -> EdgeLabel,
+    ) -> (Self, Vec<(EdgeLabel, EdgeLabel)>) {
+        let mut new_edges = vec![];
+        let mut adjoint_pairs = Vec::with_capacity(self.edge_labels().count());
+        for edge in self.edge_labels() {
+            let (src, tgt) = self
+                .edge_endpoint_labels(edge)
+                .expect("This is an edge of the quiver");
+            let dagger_edge = dagger(edge);
+            new_edges.push((tgt, src, dagger_edge.clone()));
+            adjoint_pairs.push((edge.clone(), dagger_edge));
+        }
+        for (new_edge_src, new_edge_tgt, new_edge_label) in new_edges {
+            self.add_edge(new_edge_src, new_edge_tgt, new_edge_label);
+        }
+        (self, adjoint_pairs)
+    }
+
+    pub fn ginzburgify(
+        self,
+        dagger: impl Fn(&EdgeLabel) -> EdgeLabel,
+        self_loop: impl Fn(&VertexLabel) -> EdgeLabel,
+    ) -> (Self, Vec<(EdgeLabel, EdgeLabel)>, Vec<EdgeLabel>) {
+        let vertex_labels: Vec<_> = self.vertex_labels().cloned().collect();
+        let (mut new_self, adjoint_pairs) = self.double(dagger);
+        let mut new_self_loops = Vec::new();
+        for v in vertex_labels {
+            let loop_label = self_loop(&v);
+            new_self_loops.push(loop_label.clone());
+            new_self.add_edge(v.clone(), v, loop_label);
+        }
+        (new_self, adjoint_pairs, new_self_loops)
+    }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
 pub enum BasisElt<VertexLabel, EdgeLabel> {
     Idempotent(VertexLabel),
     Path(NonEmpty<EdgeLabel>),
@@ -314,7 +352,7 @@ impl<VertexLabel, EdgeLabel> BasisElt<VertexLabel, EdgeLabel> {
 }
 
 #[must_use]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PathAlgebra<VertexLabel, EdgeLabel, Coeffs>
 where
     VertexLabel: std::hash::Hash + Eq + Clone,
@@ -363,6 +401,78 @@ where
         let mut linear = HashMap::with_capacity(1);
         linear.insert(linear_combination_paths, coeff);
         Self::new(quiver, linear)
+    }
+
+    /// This is a helper for creating the Ginzburg cubic potential.
+    /// It is not intended to be a general purpose function for creating elements of the path algebra.
+    ///
+    /// You are given `arrows_and_daggers` which are `(x,x_dagger)` pairs as `x` goes
+    /// through the arrows of the original quiver and `x_dagger` is the corresponding arrow in the opposite direction.
+    /// You are also given `self_loops` which are the newly inserted self-loops at each vertex of the original quiver.
+    /// This insertion of extra dagger arrows and extra self loops
+    /// changes the quiver from `Q` to `Q''` and the path algebra from `kQ` to `kQ''`.
+    ///
+    /// From this `W = \sum_{x in arrows Q} omega_{tgt(x)} x x_dagger - omega_{src(x)} x_dagger x`
+    /// is constructed and returned as an element of the path algebra `kQ''`.
+    #[allow(clippy::missing_panics_doc)]
+    pub fn create_ginzburg_cubic(
+        quiver: Arc<Quiver<VertexLabel, EdgeLabel>>,
+        arrows_and_daggers: Vec<(EdgeLabel, EdgeLabel)>,
+        self_loops: Vec<EdgeLabel>,
+        one: &Coeffs,
+    ) -> Self {
+        let mut places_to_self_loops = HashMap::with_capacity(self_loops.len());
+        for self_loop in self_loops {
+            let (src, _) = quiver
+                .edge_endpoint_labels(&self_loop)
+                .expect("This is an edge of the quiver");
+            places_to_self_loops.insert(
+                src,
+                Self::singleton(
+                    quiver.clone(),
+                    BasisElt::Path(nonempty::nonempty![self_loop]),
+                    one.clone(),
+                ),
+            );
+        }
+        let mut ginzburg_cubic = Self::zero(quiver);
+        for (a, a_dagger) in arrows_and_daggers {
+            let (a_src, a_tgt) = ginzburg_cubic
+                .quiver()
+                .edge_endpoint_labels(&a)
+                .expect("This is an edge of the quiver");
+            let a_part = Self::singleton(
+                ginzburg_cubic.quiver().clone(),
+                BasisElt::Path(nonempty::nonempty![a]),
+                one.clone(),
+            );
+            let (a_dagger_src, a_dagger_tgt) = ginzburg_cubic
+                .quiver()
+                .edge_endpoint_labels(&a_dagger)
+                .expect("This is an edge of the quiver");
+            debug_assert!(a_dagger_src == a_tgt);
+            debug_assert!(a_dagger_tgt == a_src);
+            let a_dagger_part = Self::singleton(
+                ginzburg_cubic.quiver().clone(),
+                BasisElt::Path(nonempty::nonempty![a_dagger]),
+                one.clone(),
+            );
+            let loop_at_a_tgt = places_to_self_loops
+                .get(&a_tgt)
+                .cloned()
+                .unwrap_or_else(|| {
+                    panic!("No self-loop found for vertex: a's target");
+                });
+            let loop_at_a_dagger_tgt = places_to_self_loops
+                .get(&a_dagger_tgt)
+                .cloned()
+                .unwrap_or_else(|| {
+                    panic!("No self-loop found for vertex: a_dagger's target");
+                });
+            ginzburg_cubic += loop_at_a_tgt * a_part.clone() * a_dagger_part.clone()
+                - loop_at_a_dagger_tgt * a_dagger_part.clone() * a_part.clone();
+        }
+        ginzburg_cubic
     }
 
     pub fn zero(quiver: Arc<Quiver<VertexLabel, EdgeLabel>>) -> Self {
@@ -757,17 +867,35 @@ where
 }
 
 #[cfg(test)]
-mod test {
+pub(crate) mod tests {
+    use super::Quiver;
 
-    #[test]
-    fn kronecker() {
-        use super::{BasisElt, PathAlgebra, Quiver};
-        use std::sync::Arc;
+    pub(crate) fn make_kronecker_quiver() -> Quiver<&'static str, &'static str> {
         let mut kronecker_quiver = Quiver::new();
         kronecker_quiver.add_vertex("alpha");
         kronecker_quiver.add_vertex("beta");
         kronecker_quiver.add_edge("alpha", "beta", "a");
         kronecker_quiver.add_edge("alpha", "beta", "b");
+        kronecker_quiver
+    }
+
+    pub(crate) fn make_ginzburg_quiver() -> (
+        Quiver<&'static str, String>,
+        Vec<(String, String)>,
+        Vec<String>,
+    ) {
+        let mut ginzburg_quiver = Quiver::new();
+        ginzburg_quiver.add_vertex("0");
+        ginzburg_quiver.add_edge("0", "0", "A".to_string());
+        ginzburg_quiver.ginzburgify(|a| format!("{}Dagger", a), |v| format!("Omega{}", v))
+    }
+
+    #[test]
+    fn kronecker() {
+        use super::{BasisElt, PathAlgebra};
+        use std::sync::Arc;
+        let kronecker_quiver = make_kronecker_quiver();
+
         assert_eq!(kronecker_quiver.num_vertices(), 2);
         assert!(kronecker_quiver.is_acyclic());
         let kronecker_quiver = Arc::new(kronecker_quiver);
@@ -797,30 +925,37 @@ mod test {
 
     #[test]
     fn ginzburg() {
-        use super::{BasisElt, PathAlgebra, Quiver};
+        use super::{BasisElt, PathAlgebra};
         use std::sync::Arc;
-        let mut ginzburg_quiver = Quiver::new();
-        ginzburg_quiver.add_vertex("0");
-        ginzburg_quiver.add_edge("0", "0", "Omega");
-        ginzburg_quiver.add_edge("0", "0", "A");
-        ginzburg_quiver.add_edge("0", "0", "ADagger");
+        let (ginzburg_quiver, adjoint_pairs, self_loops) = make_ginzburg_quiver();
         assert_eq!(ginzburg_quiver.num_vertices(), 1);
         assert!(!ginzburg_quiver.is_acyclic());
+        assert_eq!(adjoint_pairs.len(), 1);
+        assert_eq!(self_loops.len(), 1);
+        assert_eq!(adjoint_pairs[0], ("A".to_string(), "ADagger".to_string()));
+        assert_eq!(self_loops[0], "Omega0".to_string());
         let ginzburg_quiver = Arc::new(ginzburg_quiver);
+
+        let alt_ginz_cubic = PathAlgebra::create_ginzburg_cubic(
+            ginzburg_quiver.clone(),
+            adjoint_pairs,
+            self_loops,
+            &1.0,
+        );
 
         let x_omega = PathAlgebra::singleton(
             ginzburg_quiver.clone(),
-            BasisElt::Path(nonempty::nonempty!["Omega"]),
+            BasisElt::Path(nonempty::nonempty!["Omega0".to_string()]),
             1.0,
         );
         let x_a = PathAlgebra::singleton(
             ginzburg_quiver.clone(),
-            BasisElt::Path(nonempty::nonempty!["A"]),
+            BasisElt::Path(nonempty::nonempty!["A".to_string()]),
             1.0,
         );
         let x_adag = PathAlgebra::singleton(
             ginzburg_quiver.clone(),
-            BasisElt::Path(nonempty::nonempty!["ADagger"]),
+            BasisElt::Path(nonempty::nonempty!["ADagger".to_string()]),
             1.0,
         );
 
@@ -828,12 +963,13 @@ mod test {
         assert_eq!(x_adag.all_parallel(), Ok(Some(("0", "0"))));
         assert_eq!(x_omega.all_parallel(), Ok(Some(("0", "0"))));
 
-        let ginz_cubic = (x_a.clone() * x_adag.clone() - x_adag.clone() * x_a.clone()) * x_omega;
+        let ginz_cubic = x_omega * (x_a.clone() * x_adag.clone() - x_adag.clone() * x_a.clone());
         assert!(ginz_cubic.is_cyclic());
         assert_eq!(ginz_cubic.all_parallel(), Ok(Some(("0", "0"))));
+        assert_eq!(ginz_cubic, alt_ginz_cubic);
 
         let mut ginz_cubic_d_omega = ginz_cubic.clone();
-        ginz_cubic_d_omega.cyclic_derivative(&"Omega");
+        ginz_cubic_d_omega.cyclic_derivative(&"Omega0".to_string());
         assert_eq!(ginz_cubic_d_omega.all_parallel(), Ok(Some(("0", "0"))));
 
         let expected_cyclic_derivative =
