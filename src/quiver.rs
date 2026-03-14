@@ -319,6 +319,40 @@ where
         (self, adjoint_pairs)
     }
 
+    /// The heart construction on a quiver.
+    ///
+    /// This takes a quiver `Q` and produces a new quiver `Q^heart`
+    /// which has new adjoint arrows for every arrow of `Q`
+    /// and new framing arrows from every vertex of `Q` to a new vertex.
+    /// If `framings_daggered` is `true` then the framing arrows also get adjoints going back the other way.
+    #[allow(clippy::type_complexity)]
+    pub fn heartify(
+        self,
+        dagger: impl Fn(&EdgeLabel) -> EdgeLabel + Clone,
+        framing_creation: impl Fn(&VertexLabel) -> (EdgeLabel, VertexLabel),
+        framings_daggered: bool,
+    ) -> (
+        Self,
+        Vec<(EdgeLabel, EdgeLabel)>,
+        Vec<(EdgeLabel, VertexLabel, Option<EdgeLabel>)>,
+    ) {
+        let vertices = self.vertex_labels().cloned().collect::<Vec<_>>();
+        let (mut new_self, adjoint_pairs) = self.double(dagger.clone());
+        let mut new_framing_arrows = Vec::with_capacity(vertices.len());
+        for vertex in vertices {
+            let (new_edge_label, new_vertex) = framing_creation(&vertex);
+            new_self.add_edge(vertex.clone(), new_vertex.clone(), new_edge_label.clone());
+            if framings_daggered {
+                let dagger_edge = dagger(&new_edge_label);
+                new_self.add_edge(new_vertex.clone(), vertex, dagger_edge.clone());
+                new_framing_arrows.push((new_edge_label, new_vertex, Some(dagger_edge)));
+            } else {
+                new_framing_arrows.push((new_edge_label, new_vertex, None));
+            }
+        }
+        (new_self, adjoint_pairs, new_framing_arrows)
+    }
+
     pub fn ginzburgify(
         self,
         dagger: impl Fn(&EdgeLabel) -> EdgeLabel,
