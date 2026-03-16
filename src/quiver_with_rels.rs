@@ -33,16 +33,17 @@ where
         mut relations: Vec<PathAlgebra<VertexLabel, EdgeLabel, Coeffs>>,
         is_zero: Option<fn(&Coeffs) -> bool>,
     ) -> Self {
-        relations.retain(PathAlgebra::might_be_nonzero);
-        for rel in &relations {
-            assert!(Arc::ptr_eq(&quiver, rel.quiver()));
-            assert!(rel.all_parallel().is_ok());
-        }
         if let Some(is_zero) = is_zero {
             for rel in &mut relations {
                 rel.simplify(is_zero);
             }
         }
+        relations.retain(PathAlgebra::might_be_nonzero);
+        for rel in &relations {
+            assert!(Arc::ptr_eq(&quiver, rel.quiver()));
+            assert!(rel.all_parallel().is_ok());
+        }
+
         Self { quiver, relations }
     }
 
@@ -83,6 +84,9 @@ where
             + MulAssign<Coeffs>,
     {
         for rel in &self.relations {
+            if !rel.might_be_nonzero() {
+                continue;
+            }
             if let Ok(mat_this_rel) = quiver_rep.mat_from_path_algebra(rel.clone()) {
                 if !matrix_is_zero(&mat_this_rel) {
                     return false;

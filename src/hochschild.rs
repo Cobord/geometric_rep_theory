@@ -645,3 +645,141 @@ where
         Ok(hh)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use crate::{
+        checked_arith::Field, quiver::Quiver, quiver_with_mon_rels::QuiverWithMonomialRelations,
+    };
+
+    use super::MonomialQuiverAlgebraHH;
+
+    impl Field for f64 {
+        fn zero() -> Self {
+            0.0
+        }
+        fn one() -> Self {
+            1.0
+        }
+        fn inv(self) -> Self {
+            1.0 / self
+        }
+    }
+
+    fn hh_dims(
+        hh: &mut MonomialQuiverAlgebraHH<&'static str, &'static str, f64>,
+        max_degree: usize,
+    ) -> Vec<usize> {
+        let dims = hh
+            .hochschild_dimensions(max_degree, 10_000)
+            .expect("HH computation failed");
+        (0..=max_degree).map(|d| dims[&d]).collect()
+    }
+
+    fn no_rels(
+        q: Quiver<&'static str, &'static str>,
+    ) -> MonomialQuiverAlgebraHH<&'static str, &'static str, f64> {
+        let q = Arc::new(QuiverWithMonomialRelations::new(Arc::new(q), []));
+        MonomialQuiverAlgebraHH::new(q, 20)
+    }
+
+    // ── No ideal quotient ──────────────────────────────────────────────────────
+
+    // kQ = k (single vertex, no arrows). HH^n = 0 for n > 0, HH^0 = k.
+    #[test]
+    fn hh_a1_no_relations() {
+        let mut q = Quiver::new();
+        q.add_vertex("0");
+        let mut hh = no_rels(q);
+        let dims = hh_dims(&mut hh, 3);
+        assert_eq!(dims[0], 1, "HH^0(k) = k");
+        assert_eq!(dims[1], 0);
+        assert_eq!(dims[2], 0);
+        assert_eq!(dims[3], 0);
+    }
+
+    // kA_2: 2 vertices, 1 arrow. Hereditary acyclic → HH^n = 0 for n >= 1.
+    // Center = k (connected), so HH^0 = k.
+    #[test]
+    fn hh_a2_no_relations() {
+        let mut q = Quiver::new();
+        q.add_vertex("0");
+        q.add_vertex("1");
+        q.add_edge("0", "1", "a");
+        let mut hh = no_rels(q);
+        let dims = hh_dims(&mut hh, 3);
+        assert_eq!(
+            dims[0], 1,
+            "HH^0(kA_2) = k, center of connected path algebra"
+        );
+        assert_eq!(dims[1], 0, "kA_2 hereditary + acyclic → HH^1 = 0");
+        assert_eq!(dims[2], 0);
+        assert_eq!(dims[3], 0);
+    }
+
+    // Kronecker quiver: 2 vertices, 2 parallel arrows a,b: alpha -> beta.
+    // Hereditary so HH^n = 0 for n >= 2.
+    // HH^0 = k (center, connected). HH^1 = k^3 (3 outer derivations).
+    //
+    // Derivation proof: D(a), D(b) ∈ span{a,b} = k^2 each, so Der = k^4.
+    // InnDer = span{ ad_{e_alpha} : D(a)=a, D(b)=b } = k^1.
+    // OutDer = k^4 / k^1 = k^3.
+    #[test]
+    fn hh_kronecker_no_relations() {
+        let kq = crate::quiver::tests::make_kronecker_quiver();
+        let mut hh = no_rels(kq);
+        let dims = hh_dims(&mut hh, 3);
+        assert_eq!(dims[0], 1, "HH^0(Kronecker) = k");
+        assert_eq!(dims[1], 3, "HH^1(Kronecker) = k^3, three outer derivations");
+        assert_eq!(dims[2], 0, "Kronecker algebra is hereditary, HH^2 = 0");
+        assert_eq!(dims[3], 0);
+    }
+
+    // ── Monomial ideal quotients ───────────────────────────────────────────────
+
+    // A_3/<ab>: vertices 0,1,2; arrows a: 0→1, b: 1→2; relation ab=0.
+    // Basis of A: {e_0, e_1, e_2, a, b} (ab=0 kills the only length-2 path).
+    //
+    // Bardzell chains: degree 1 → {[a],[b]}, degree 2 → {[a,b]}, degree 3 → none
+    // (the overlap test fails: word [a,b] ends in [b] ≠ [a] = start of relation).
+    //
+    // Cochain dims:
+    //   C^0 = 3  (one idempotent per vertex)
+    //   C^1 = 2  (arrow [a] || a, arrow [b] || b — one parallel path each)
+    //   C^2 = 0  (relation chain [a,b] goes 0→2, but e_0·A·e_2 = 0 since ab=0)
+    //
+    // d^0 matrix (rows=C^1, cols=C^0):
+    //         e_0  e_1  e_2
+    //   [a]:  -1   +1    0
+    //   [b]:   0   -1   +1
+    // rank = 2, kernel = span{(1,1,1)} → HH^0 = 1.
+    // HH^1 = C^1 / im(d^0) = k^2 / k^2 = 0.
+    // HH^n = 0 for n >= 2 (C^2 = 0 and no higher chains).
+    #[test]
+    fn hh_a3_relation_ab() {
+        let mut q = Quiver::new();
+        q.add_vertex("0");
+        q.add_vertex("1");
+        q.add_vertex("2");
+        q.add_edge("0", "1", "a");
+        q.add_edge("1", "2", "b");
+        let q = Arc::new(QuiverWithMonomialRelations::new(
+            Arc::new(q),
+            [vec!["a", "b"]],
+        ));
+        let mut hh: MonomialQuiverAlgebraHH<_, _, f64> = MonomialQuiverAlgebraHH::new(q, 20);
+
+        // Verify cochain dimensions reflect the structure above.
+        assert_eq!(hh.cochain_dim(0), 3);
+        assert_eq!(hh.cochain_dim(1), 2);
+        assert_eq!(hh.cochain_dim(2), 0);
+
+        let dims = hh_dims(&mut hh, 3);
+        assert_eq!(dims[0], 1, "HH^0 = k, center of connected algebra");
+        assert_eq!(dims[1], 0, "d^0 surjects onto C^1, so HH^1 = 0");
+        assert_eq!(dims[2], 0, "C^2 = 0 since e_0·A·e_2 = 0");
+        assert_eq!(dims[3], 0);
+    }
+}
