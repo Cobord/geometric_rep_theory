@@ -32,7 +32,7 @@ where
     ///
     /// If we have not given the matrix associated to every edge, then this is
     /// not enough information for a quiver representation
-    /// 
+    ///
     /// If we are doing `check_idempotency` and any of the vertex reps is not idempotent,
     /// then this is not a valid quiver rep.
     #[allow(clippy::missing_panics_doc, clippy::type_complexity)]
