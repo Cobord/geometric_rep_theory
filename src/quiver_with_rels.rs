@@ -47,6 +47,10 @@ where
         Self { quiver, relations }
     }
 
+    pub fn from_quiver_no_relations(quiver: Arc<Quiver<VertexLabel, EdgeLabel>>) -> Self {
+        Self::new(quiver, vec![], None)
+    }
+
     pub fn from_quiver_and_w(
         quiver: Arc<Quiver<VertexLabel, EdgeLabel>>,
         w_function: &PathAlgebra<VertexLabel, EdgeLabel, Coeffs>,

@@ -913,6 +913,14 @@ pub(crate) mod tests {
         kronecker_quiver
     }
 
+    pub(crate) fn make_a2_quiver() -> Quiver<&'static str, &'static str> {
+        let mut kronecker_quiver = Quiver::new();
+        kronecker_quiver.add_vertex("alpha");
+        kronecker_quiver.add_vertex("beta");
+        kronecker_quiver.add_edge("alpha", "beta", "a");
+        kronecker_quiver
+    }
+
     pub(crate) fn make_ginzburg_quiver() -> (
         Quiver<&'static str, String>,
         Vec<(String, String)>,

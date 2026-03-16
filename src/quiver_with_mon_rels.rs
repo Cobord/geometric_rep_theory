@@ -32,6 +32,11 @@ where
         Self { quiver, relations }
     }
 
+    #[allow(dead_code)]
+    pub(crate) fn quiver_arc(&self) -> &Arc<Quiver<VertexLabel, EdgeLabel>> {
+        &self.quiver
+    }
+
     pub fn vertices(&self) -> impl Iterator<Item = VertexLabel> {
         self.quiver.vertex_labels().cloned()
     }
