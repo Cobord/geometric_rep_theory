@@ -1,251 +1,405 @@
-use std::{collections::HashMap, fmt::Debug, ops::MulAssign, sync::Arc};
+use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
 use nalgebra::DMatrix;
 
 use crate::{
-    checked_arith::{CheckedAdd, CheckedAddAssign, CheckedMul, Ring},
+    checked_arith::{Field, Ring},
     quiver::BasisElt,
     quiver_with_mon_rels::{NonMonomialIdeal, QuiverWithMonomialRelations},
     quiver_with_rels::QuiverWithRelations,
 };
 
-/// An (A, A)-bimodule over A = kQ/I, accessed through its Peirce decomposition.
+// ── Element type ─────────────────────────────────────────────────────────────
+
+/// An element of the Peirce piece `e_left M e_right`, expressed as coordinates
+/// in the ordered basis returned by [`QuiverBimodule::peirce_basis`].
 ///
-/// The bimodule M decomposes as `M = ⊕_{v,w} e_v M e_w`.  Implementors provide
-/// the linear maps for the left and right A-actions arrow-by-arrow.
+/// `M` is a bimodule over `kQ^{op}` so the multiplications are all happening
+/// with these opposite conventions.
 ///
-/// **Conventions** (paths are left-to-right: source first, target last):
+/// The coordinates are indexed so that `coords[i]` is the coefficient of the
+/// `i`-th basis element as returned by `peirce_basis(left, right)`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PeirceElement<V, Coeffs> {
+    pub left: V,
+    pub right: V,
+    pub coords: Vec<Coeffs>,
+}
+
+impl<V: Clone, Coeffs: Field> PeirceElement<V, Coeffs> {
+    /// Zero element of `e_left M e_right`.
+    pub fn zero(left: V, right: V, dim: usize) -> Self {
+        Self {
+            left,
+            right,
+            coords: vec![Coeffs::zero(); dim],
+        }
+    }
+
+    /// The `i`-th standard basis vector in `e_left M e_right`.
+    pub fn basis_vec(left: V, right: V, dim: usize, i: usize) -> Self {
+        let mut coords = vec![Coeffs::zero(); dim];
+        coords[i] = Coeffs::one();
+        Self {
+            left,
+            right,
+            coords,
+        }
+    }
+
+    /// True iff all coordinates are zero.
+    pub fn is_zero(&self) -> bool {
+        self.coords.iter().all(Coeffs::is_zero)
+    }
+
+    /// `self += other` coordinate-wise (panics if dimensions differ).
+    pub fn add_assign(&mut self, other: &Self) {
+        debug_assert_eq!(self.coords.len(), other.coords.len());
+        for (s, o) in self.coords.iter_mut().zip(&other.coords) {
+            *s += o.clone();
+        }
+    }
+
+    /// Scale every coordinate by `c`.
+    pub fn scale_assign(&mut self, c: &Coeffs) {
+        for coord in &mut self.coords {
+            *coord *= c.clone();
+        }
+    }
+}
+
+// ── Trait ─────────────────────────────────────────────────────────────────────
+
+/// An (A, A)-bimodule over A = kQ^{op}/I^{op}, accessed through its Peirce decomposition.
 ///
-/// - [`left_action`](QuiverBimodule::left_action)`(α, w)` returns the map
-///   `L_{α,w}: e_{t(α)} M e_w → e_{s(α)} M e_w`
-///   induced by left-multiplying by `α: s(α)→t(α)`.
-///   Left multiplication is *contravariant* in the left Peirce index.
+/// **Path convention**: `BasisElt::Path([a₁, a₂, …, aₙ])` means "follow a₁ first, then
+/// a₂, …, then aₙ" (left-to-right concatenation).  This makes the algebra kQ^{op}: arrow
+/// α: s(α) → t(α) in Q lies in `e_{s(α)} kQ^{op} e_{t(α)}`. The multiplication and
+/// elements all being interpreted with opposite multiplications.
+/// For paths `p ∈ e_v kQ^{op} e_w` and `q ∈ e_w kQ^{op} e_s`, the product
+/// `p·q ∈ e_v kQ^{op} e_s`.
 ///
-/// - [`right_action`](QuiverBimodule::right_action)`(β, v)` returns the map
-///   `R_{β,v}: e_v M e_{s(β)} → e_v M e_{t(β)}`
-///   induced by right-multiplying by `β: s(β)→t(β)`.
-///   Right multiplication is *covariant* in the right Peirce index.
-pub trait QuiverBimodule<VertexLabel, EdgeLabel, Coeffs, M>
+/// **Indexing convention**: [`peirce_basis`](QuiverBimodule::peirce_basis)`(v, w)` and
+/// [`PeirceElement`] use the convention where `left` = source in Q and `right`
+/// = target in Q.  This is the swap of the `kQ` vs `kQ^{opp}` Peirce indices.
+///
+/// Implementors must supply:
+/// - the ordered basis of each Peirce piece via [`peirce_basis`],
+/// - the arrow-level actions via [`left_act`] / [`right_act`].
+///
+/// **Actions** (described using the internal `.left`/`.right` fields):
+///
+/// - [`left_act`](QuiverBimodule::left_act)`(α, elt)` requires `elt.left = t(α)` and
+///   returns an element with `left = s(α)`, `right` unchanged.
+///
+/// - [`right_act`](QuiverBimodule::right_act)`(β, elt)` requires `elt.right = s(β)` and
+///   returns an element with `right = t(β)`, `left` unchanged.
+///
+/// The generic parameter `BasisLabel` is the type used to label individual
+/// basis elements of each Peirce piece (e.g., admissible paths for the
+/// diagonal bimodule).
+pub trait QuiverBimodule<V, E, Coeffs, BasisLabel>
 where
-    VertexLabel: std::hash::Hash + Eq + Clone,
-    EdgeLabel: Eq + std::hash::Hash + Clone,
+    V: std::hash::Hash + Eq + Clone,
+    E: Eq + std::hash::Hash + Clone,
     Coeffs: Ring,
 {
-    /// The algebra A = kQ/I over which this is a bimodule.
-    fn algebra(&self) -> &Arc<QuiverWithRelations<VertexLabel, EdgeLabel, Coeffs>>;
+    /// The algebra A = kQ^{op}/I^{op} over which this is a bimodule.
+    fn algebra(&self) -> &Arc<QuiverWithRelations<V, E, Coeffs>>;
 
-    /// The map `L_{α,w}: e_{t(α)} M e_w → e_{s(α)} M e_w`.
+    /// The ordered basis of the internal Peirce piece `(v, w)`
+    /// If using `kQ` instead of `kQ^{op}` this would be `e_w N e_v`
+    /// where `N` is "same" bimodule as this but regarded with `kQ` actions.
+    ///     
+    /// Empty if the piece is zero.
     ///
-    /// Returns `None` when `alpha` or `w` is not in the quiver.
-    fn left_action(&self, alpha: &EdgeLabel, w: &VertexLabel) -> Option<M>;
+    /// The `i`-th entry corresponds to `coords[i]` in any [`PeirceElement`]
+    /// with `left == v` and `right == w`.
+    ///
+    /// If either `v` or `w` are not in the quiver then it gives an empty array.
+    /// There is no subspace component there.
+    fn peirce_basis(&self, v: &V, w: &V) -> &[BasisLabel];
 
-    /// The map `R_{β,v}: e_v M e_{s(β)} → e_v M e_{t(β)}`.
+    /// Dimension of `e_v M e_w`.
+    fn peirce_dim(&self, v: &V, w: &V) -> usize {
+        self.peirce_basis(v, w).len()
+    }
+
+    /// Left action by arrow `α`: requires `elt.left = t(α)` (internal convention).
     ///
-    /// Returns `None` when `beta` or `v` is not in the quiver.
-    fn right_action(&self, beta: &EdgeLabel, v: &VertexLabel) -> Option<M>;
+    /// Returns an element with `left = s(α)`, `right` unchanged.
+    /// If `elt.left ≠ t(α)` the result is zero in the appropriate Peirce piece.
+    ///
+    /// # Panics
+    ///
+    /// If `alpha` is not an edge of the quiver or `elt` is not actually an element of the
+    /// pruported subspace.
+    fn left_act(&self, alpha: &E, elt: &PeirceElement<V, Coeffs>) -> PeirceElement<V, Coeffs>;
+
+    /// Right action by arrow `β`: requires `elt.right = s(β)` (internal convention).
+    ///
+    /// Returns an element with `right = t(β)`, `left` unchanged.
+    /// If `elt.right ≠ s(β)` the result is zero in the appropriate Peirce piece.
+    ///
+    /// # Panics
+    ///
+    /// If `beta` is not an edge of the quiver or `elt` is not actually an element of the
+    /// pruported subspace.
+    fn right_act(&self, beta: &E, elt: &PeirceElement<V, Coeffs>) -> PeirceElement<V, Coeffs>;
+
+    /// Left action of an arbitrary algebra basis element `b` on `elt`.
+    /// This transforms from `elt \in e_{t(b))} M e_{w}`
+    /// via `b \in e_{s(b)} kQ^{op} e_{t(b)}` to give
+    /// the result in `e_{s(b))} M e_{w}`
+    /// using the left action of `kQ^{op}` that descended to the quoteint
+    /// `kQ^{op}/I^{op}`.
+    ///
+    /// - `BasisElt::Idempotent(v)`: returns `elt` if `elt.left == v`, else zero
+    ///   (internal piece `(v, elt.right)`, usual convention piece `e_{elt.right} M e_v`).
+    /// - `BasisElt::Path([a₁,…,aₙ])`: path from `s(a₁)` to `t(aₙ)` in Q, lying in
+    ///   usual convention `e_{t(aₙ)} kQ e_{s(a₁)}` vs `e_{s(a₁)} kQ^{op} e_{t(aₙ)}`.
+    ///   Applies `left_act` starting from `aₙ`
+    ///   (last arrow) down to `a₁`.  The result has `left = s(a₁)`.
+    fn left_act_algebra_elt(
+        &self,
+        b: &BasisElt<V, E>,
+        elt: &PeirceElement<V, Coeffs>,
+    ) -> PeirceElement<V, Coeffs>
+    where
+        Coeffs: Field,
+    {
+        let expected_right = elt.right.clone();
+        let (expected_left, _expected_middle) = self
+            .algebra()
+            .quiver()
+            .basis_endpoints(b)
+            .expect("This is a path in the quiver");
+
+        let to_return = match b {
+            BasisElt::Idempotent(v) => {
+                if &elt.left == v {
+                    elt.clone()
+                } else {
+                    PeirceElement::zero(
+                        v.clone(),
+                        elt.right.clone(),
+                        self.peirce_dim(v, &elt.right),
+                    )
+                }
+            }
+            BasisElt::Path(word) => {
+                let mut m = elt.clone();
+                for arrow in word.iter().rev() {
+                    m = self.left_act(arrow, &m);
+                }
+                m
+            }
+        };
+        debug_assert!(to_return.left == expected_left);
+        debug_assert!(to_return.right == expected_right);
+        to_return
+    }
+
+    /// Right action of an arbitrary algebra basis element `b` on `elt`.
+    /// This transforms from `elt \in e_w M e_{s(b))}`
+    /// via `b \in e_{s(b)} kQ^{op} e_{t(b)}` to give
+    /// the result in `e_w M e_{t(b))}`
+    /// using the right action of `kQ^{op}` that descended to the quoteint
+    /// `kQ^{op}/I^{op}`.
+    ///
+    /// - `BasisElt::Idempotent(v)`: returns `elt` if `elt.right == v`, else zero
+    /// - `BasisElt::Path([a₁,…,aₙ])`: path from `s(a₁)` to `t(aₙ)` in Q, lying in
+    ///   usual convention `e_{t(aₙ)} kQ e_{s(a₁)}` vs `e_{s(a₁)} kQ^{op} e_{t(aₙ)}`.
+    ///   Applies `right_act` starting from `a₁`
+    ///   (first arrow) up to `aₙ`, appending one arrow at a time.  The result has
+    ///   `right = t(aₙ)`.
+    fn right_act_algebra_elt(
+        &self,
+        b: &BasisElt<V, E>,
+        elt: &PeirceElement<V, Coeffs>,
+    ) -> PeirceElement<V, Coeffs>
+    where
+        Coeffs: Field,
+    {
+        let expected_left = elt.left.clone();
+        let (_expected_middle, expected_right) = self
+            .algebra()
+            .quiver()
+            .basis_endpoints(b)
+            .expect("This is a path in the quiver");
+
+        let to_return = match b {
+            BasisElt::Idempotent(v) => {
+                if &elt.right == v {
+                    elt.clone()
+                } else {
+                    PeirceElement::zero(elt.left.clone(), v.clone(), self.peirce_dim(&elt.left, v))
+                }
+            }
+            BasisElt::Path(word) => {
+                let mut m = elt.clone();
+                for arrow in word.iter() {
+                    m = self.right_act(arrow, &m);
+                }
+                m
+            }
+        };
+        debug_assert!(to_return.left == expected_left);
+        debug_assert!(to_return.right == expected_right);
+        to_return
+    }
 
     /// Check the three (A, A)-bimodule axioms.
     ///
-    /// Returns `Ok(violations)` — empty iff all axioms hold — or `Err(msg)`
-    /// when the action data is structurally ill-formed.
+    /// Returns the list of violations (empty iff all axioms hold).
     ///
-    /// ## Axioms
+    /// ## Axioms checked
     ///
-    /// 1. **Left relations**: for each relation ρ = Σᵢ cᵢ pᵢ in I and each
-    ///    right-index vertex w, the map Σᵢ cᵢ L_{pᵢ,w} = 0.
+    /// 1. **Left relations**: for each relation ρ ∈ I and each right-index
+    ///    vertex w, the left action of ρ is zero on every element of
+    ///    `e_{t(ρ)} M e_w`.
     ///
-    /// 2. **Right relations**: for each relation ρ and each left-index vertex v,
-    ///    Σᵢ cᵢ R_{pᵢ,v} = 0  (where R_{pᵢ,v} = R_{rₙ,v} ∘ ⋯ ∘ R_{r₁,v}).
+    /// 2. **Right relations**: for each relation ρ and each left-index vertex
+    ///    v, the right action of ρ is zero on every element of
+    ///    `e_v M e_{s(ρ)}`.
     ///
-    /// 3. **Commutativity**: for every pair of arrows α: i→j and β: p→q,
-    ///    L_{α,q} ∘ R_{β,j} = R_{β,i} ∘ L_{α,p}  (maps M_{j,p} → M_{i,q}).
-    ///
-    /// # Errors
-    ///
-    /// If a required matrix is missing or a multiplication fails.
-    #[allow(clippy::too_many_lines)]
-    fn check_bimodule_axioms<M2>(
-        &self,
-        promotion: impl Fn(M) -> M2,
-        is_zero: impl Fn(&M2) -> bool,
-    ) -> Result<Vec<BimoduleAxiomViolation<VertexLabel, EdgeLabel>>, String>
+    /// 3. **Commutativity**: for every pair of arrows α: i→j and β: p→q and
+    ///    every basis element `b` of `e_j M e_p`,
+    ///    `α · (b · β) = (α · b) · β`.
+    fn check_bimodule_axioms(&self) -> Vec<BimoduleAxiomViolation<V, E>>
     where
-        VertexLabel: std::hash::Hash + Eq + Clone + Debug,
-        EdgeLabel: std::hash::Hash + Eq + Clone + Debug,
-        Coeffs: Ring + Clone,
-        M2: Clone + PartialEq + CheckedMul + CheckedAdd + CheckedAddAssign + MulAssign<Coeffs>,
-        <M2 as CheckedMul>::MultiplicationError: Debug,
-        <M2 as CheckedAdd>::AdditionError: Debug,
-        <M2 as CheckedAddAssign>::AdditionError: Debug,
+        V: Debug,
+        E: Debug,
+        Coeffs: Field,
+        BasisLabel: Clone,
     {
         let mut violations = Vec::new();
         let algebra = self.algebra();
         let quiver = algebra.quiver();
 
         // ── Axiom 1: left relations ───────────────────────────────────────────
-        // For each relation ρ and each right-index w, compute
-        //   Σᵢ cᵢ · (L_{a₁,w} * L_{a₂,w} * … * L_{aₙ,w})  and check zero.
         for (rel_idx, rel) in algebra.relations().enumerate() {
-            if !rel.might_be_nonzero() {
+            let Some((src_rel, tgt_rel)) = rel.all_parallel()
+                .expect("The relations are well formed. Combining r1 + r2 with different endpoints, actually means r1 and r2 should be in the generators of the ideal separately") else {
                 continue;
-            }
+            };
             for w in quiver.vertex_labels() {
-                let mut action_sum: Option<M2> = None;
-
-                for (basis_elt, coeff) in rel.clone() {
-                    let BasisElt::Path(word) = basis_elt else {
-                        continue; // idempotent terms handled by algebra structure
-                    };
-                    // compose: L_{a₁,w} * L_{a₂,w} * …
-                    let mat = self
-                        .left_action(word.first(), w)
-                        .ok_or_else(|| format!("Missing L_({:?},{w:?})", word.first()))?;
-                    let mut mat = promotion(mat);
-                    for arrow in word.tail() {
-                        let next = self
-                            .left_action(arrow, w)
-                            .ok_or_else(|| format!("Missing L_({arrow:?},{w:?})"))?;
-                        let next = promotion(next);
-                        mat = mat
-                            .checked_mul(next)
-                            .map_err(|e| format!("Left action composition error: {e:?}"))?;
+                let dim_in = self.peirce_dim(&tgt_rel, w);
+                let dim_out = self.peirce_dim(&src_rel, w);
+                'basis: for i in 0..dim_in {
+                    let ei = PeirceElement::basis_vec(tgt_rel.clone(), w.clone(), dim_in, i);
+                    let mut sum = PeirceElement::zero(src_rel.clone(), w.clone(), dim_out);
+                    for (basis_elt, coeff) in rel.iter() {
+                        if coeff.is_zero() {
+                            continue;
+                        }
+                        let mut term = self.left_act_algebra_elt(basis_elt, &ei);
+                        term.scale_assign(coeff);
+                        sum.add_assign(&term);
                     }
-                    mat *= coeff;
-                    match &mut action_sum {
-                        None => action_sum = Some(mat),
-                        Some(s) => s
-                            .checked_add_assign(mat)
-                            .map_err(|e| format!("Left action sum error: {e:?}"))?,
-                    }
-                }
-                #[allow(clippy::collapsible_if)]
-                if let Some(ref a) = action_sum {
-                    if !is_zero(a) {
+                    if !sum.is_zero() {
                         violations.push(BimoduleAxiomViolation::LeftRelationFails {
                             relation_index: rel_idx,
                             right_vertex: w.clone(),
                         });
+                        break 'basis;
                     }
                 }
             }
         }
 
         // ── Axiom 2: right relations ──────────────────────────────────────────
-        // For each relation ρ and each left-index v, compute
-        //   Σᵢ cᵢ · (R_{aₙ,v} * … * R_{a₁,v})  and check zero.
-        // Build R_{aₙ} * … * R_{a₁} by starting from R_{a₁} and prepending each
-        // subsequent factor on the left: mat ← R_{aᵢ} * mat.
         for (rel_idx, rel) in algebra.relations().enumerate() {
-            if !rel.might_be_nonzero() {
+            let Some((src_rel, tgt_rel)) = rel.all_parallel()
+                .expect("The relations are well formed. Combining r1 + r2 with different endpoints, actually means r1 and r2 should be in the generators of the ideal separately") else {
                 continue;
-            }
+            };
             for v in quiver.vertex_labels() {
-                let mut action_sum: Option<M2> = None;
-
-                for (basis_elt, coeff) in rel.clone() {
-                    let BasisElt::Path(word) = basis_elt else {
-                        continue;
-                    };
-                    let mat = self
-                        .right_action(word.first(), v)
-                        .ok_or_else(|| format!("Missing R_({:?},{v:?})", word.first()))?;
-                    let mut mat = promotion(mat);
-                    for arrow in word.tail() {
-                        let next = self
-                            .right_action(arrow, v)
-                            .ok_or_else(|| format!("Missing R_({arrow:?},{v:?})"))?;
-                        let next = promotion(next);
-                        // R_{aᵢ} ∘ (previous) — prepend on the left
-                        mat = next
-                            .checked_mul(mat)
-                            .map_err(|e| format!("Right action composition error: {e:?}"))?;
+                let dim_in = self.peirce_dim(v, &src_rel);
+                let dim_out = self.peirce_dim(v, &tgt_rel);
+                'basis: for i in 0..dim_in {
+                    let ei = PeirceElement::basis_vec(v.clone(), src_rel.clone(), dim_in, i);
+                    let mut sum = PeirceElement::zero(v.clone(), tgt_rel.clone(), dim_out);
+                    for (basis_elt, coeff) in rel.iter() {
+                        if coeff.is_zero() {
+                            continue;
+                        }
+                        let mut term = self.right_act_algebra_elt(basis_elt, &ei);
+                        term.scale_assign(coeff);
+                        sum.add_assign(&term);
                     }
-                    mat *= coeff;
-                    match &mut action_sum {
-                        None => action_sum = Some(mat),
-                        Some(s) => s
-                            .checked_add_assign(mat)
-                            .map_err(|e| format!("Right action sum error: {e:?}"))?,
-                    }
-                }
-                #[allow(clippy::collapsible_if)]
-                if let Some(ref a) = action_sum {
-                    if !is_zero(a) {
+                    if !sum.is_zero() {
                         violations.push(BimoduleAxiomViolation::RightRelationFails {
                             relation_index: rel_idx,
                             left_vertex: v.clone(),
                         });
+                        break 'basis;
                     }
                 }
             }
         }
 
         // ── Axiom 3: commutativity ────────────────────────────────────────────
-        // For α: src_a→tgt_a and β: src_b→tgt_b:
-        //   L_{α, tgt_b} * R_{β, tgt_a}  =  R_{β, src_a} * L_{α, src_b}.
+        // For α: i→j and β: p→q, check α·(b·β) = (α·b)·β for every
+        // basis element b of e_j M e_p.
         for alpha in quiver.edge_labels() {
-            let Some((src_a, tgt_a)) = quiver.edge_endpoint_labels(alpha) else {
+            let Some((_src_a, tgt_a)) = quiver.edge_endpoint_labels(alpha) else {
                 continue;
             };
             for beta in quiver.edge_labels() {
-                let Some((src_b, tgt_b)) = quiver.edge_endpoint_labels(beta) else {
+                let Some((src_b, _tgt_b)) = quiver.edge_endpoint_labels(beta) else {
                     continue;
                 };
-
-                let l_alpha_tgtb = self
-                    .left_action(alpha, &tgt_b)
-                    .ok_or_else(|| format!("Missing L_({alpha:?},{tgt_b:?})"))?;
-                let r_beta_tgta = self
-                    .right_action(beta, &tgt_a)
-                    .ok_or_else(|| format!("Missing R_({beta:?},{tgt_a:?})"))?;
-                let r_beta_srca = self
-                    .right_action(beta, &src_a)
-                    .ok_or_else(|| format!("Missing R_({beta:?},{src_a:?})"))?;
-                let l_alpha_srcb = self
-                    .left_action(alpha, &src_b)
-                    .ok_or_else(|| format!("Missing L_({alpha:?},{src_b:?})"))?;
-
-                let lhs = promotion(l_alpha_tgtb)
-                    .checked_mul(promotion(r_beta_tgta))
-                    .map_err(|e| format!("Commutativity lhs error: {e:?}"))?;
-                let rhs = promotion(r_beta_srca)
-                    .checked_mul(promotion(l_alpha_srcb))
-                    .map_err(|e| format!("Commutativity rhs error: {e:?}"))?;
-
-                if lhs != rhs {
-                    violations.push(BimoduleAxiomViolation::CommutativityFails {
-                        left_arrow: alpha.clone(),
-                        right_arrow: beta.clone(),
-                    });
+                let domain_basis_len = self.peirce_dim(&tgt_a, &src_b);
+                'basis: for i in 0..domain_basis_len {
+                    let b =
+                        PeirceElement::basis_vec(tgt_a.clone(), src_b.clone(), domain_basis_len, i);
+                    // LHS: α · (b · β)
+                    let lhs = self.left_act(alpha, &self.right_act(beta, &b));
+                    // RHS: (α · b) · β
+                    let rhs = self.right_act(beta, &self.left_act(alpha, &b));
+                    if lhs != rhs {
+                        violations.push(BimoduleAxiomViolation::CommutativityFails {
+                            left_arrow: alpha.clone(),
+                            right_arrow: beta.clone(),
+                        });
+                        break 'basis;
+                    }
                 }
             }
         }
 
-        Ok(violations)
+        violations
     }
 }
 
-/// A violation of one of the three (A, A)-bimodule axioms.
+// ── Axiom violation type ──────────────────────────────────────────────────────
+
+/// A violation of one of the three `(kQ^{op}/I^{op}, kQ^{op}/I^{op})`-bimodule axioms.
 #[derive(Debug, Clone, PartialEq)]
 pub enum BimoduleAxiomViolation<V, E> {
     /// Left multiplication by `algebra.relations()[relation_index]` does not
-    /// act as zero on the Peirce component with right index `right_vertex`.
+    /// act as zero on the Peirce component with internal right index `right_vertex`.
+    /// This means the left action on the piece `e_t M e_{right_vertex}` is nonzero,
+    /// so the action does not descend to the quotient by this relation.
     LeftRelationFails {
         relation_index: usize,
         right_vertex: V,
     },
     /// Right multiplication by `algebra.relations()[relation_index]` does not
-    /// act as zero on the Peirce component with left index `left_vertex`.
+    /// act as zero on the Peirce component with internal left index `left_vertex`.
+    /// This means the right action on the piece `e_{left_vertex} M e_s` is nonzero,
+    /// so the action does not descend to the quotient by this relation.
     RightRelationFails {
         relation_index: usize,
         left_vertex: V,
     },
     /// The left action of `left_arrow` and the right action of `right_arrow`
-    /// do not commute on some Peirce component.
+    /// do not commute on some basis element of the relevant Peirce piece.
     CommutativityFails { left_arrow: E, right_arrow: E },
 }
 
-// ── Diagonal bimodule A = kQ/I ────────────────────────────────────────────
+// ── Diagonal bimodule A = kQ^{op}/I^{op} ─────────────────────────────────────
 
 /// Error from [`DiagonalBimodule::try_new`].
 #[derive(Debug, Clone, PartialEq)]
@@ -257,35 +411,39 @@ pub enum DiagonalBimoduleError {
     TooManyPaths { max_paths: usize },
 }
 
-/// A = kQ/I viewed as an (A, A)-bimodule over itself (the *diagonal bimodule*).
+/// `A = kQ^{op}/I^{op}` viewed as an `(A, A)`-bimodule over itself (the *diagonal bimodule*).
 ///
-/// The Peirce piece `e_v A e_w` is spanned by all admissible paths from v to w
-/// (with the idempotent `e_v`, represented as the empty path, included when v = w).
+/// The piece `e_v kQ^{op} e_w` is spanned by all admissible paths from `v`
+/// to `w` in Q, with the idempotent `e_v` (empty path) included when `v = w`.
+/// Internally this piece is accessed as `peirce_basis(v, w)` (source first, target second).
 ///
-/// The left and right action maps are precomputed as 0/1 matrices.
-///
-/// - `L_{α,w}`: column j picks out the path obtained by prepending α to the j-th
-///   basis element of `e_{t(α)} A e_w` (1 if non-zero in A, 0 otherwise).
-/// - `R_{β,v}`: column j picks out the path obtained by appending β to the j-th
-///   basis element of `e_v A e_{s(β)}`.
-pub struct DiagonalBimodule<VertexLabel, EdgeLabel, Coeffs>
+/// Basis labels are `Vec<E>` (the edge-label sequence of the path in Q; empty = idempotent).
+/// [`peirce_basis`](QuiverBimodule::peirce_basis) returns these sequences in the order
+/// they were enumerated (BFS).
+pub struct DiagonalBimodule<V, E, Coeffs>
 where
-    VertexLabel: std::hash::Hash + Eq + Clone,
-    EdgeLabel: Eq + std::hash::Hash + Clone,
+    V: std::hash::Hash + Eq + Clone,
+    E: Eq + std::hash::Hash + Clone,
     Coeffs: Ring,
 {
-    algebra: Arc<QuiverWithRelations<VertexLabel, EdgeLabel, Coeffs>>,
-    left_matrices: HashMap<(EdgeLabel, VertexLabel), DMatrix<bool>>,
-    right_matrices: HashMap<(EdgeLabel, VertexLabel), DMatrix<bool>>,
-    #[allow(dead_code)]
-    basis_idx: HashMap<(VertexLabel, VertexLabel), HashMap<Vec<EdgeLabel>, usize>>,
+    algebra: Arc<QuiverWithRelations<V, E, Coeffs>>,
+    /// Ordered basis of each Peirce piece: `basis_by_pair[(v, w)] = [path₀, path₁, …]`.
+    basis_by_pair: HashMap<(V, V), Vec<Vec<E>>>,
+    /// Left action matrices: `left_matrices[(α, w)]` is `L_{α,w}`,
+    /// mapping internal piece `(t(α), w)` → `(s(α), w)`.
+    /// Size: `dim(s(α), w) × dim(t(α), w)`.
+    left_matrices: HashMap<(E, V), DMatrix<bool>>,
+    /// Right action matrices: `right_matrices[(β, v)]` is `R_{β,v}`,
+    /// mapping internal piece `(v, s(β))` → `(v, t(β))`.
+    /// Size: `dim(v, t(β)) × dim(v, s(β))`.
+    right_matrices: HashMap<(E, V), DMatrix<bool>>,
 }
 
 impl<V, E, Coeffs> DiagonalBimodule<V, E, Coeffs>
 where
     V: std::hash::Hash + Eq + Clone + Debug,
     E: std::hash::Hash + Eq + Clone + Debug,
-    Coeffs: crate::checked_arith::Field,
+    Coeffs: Field,
 {
     /// Construct the diagonal bimodule of a monomial algebra.
     ///
@@ -294,7 +452,7 @@ where
     /// # Errors
     ///
     /// - [`DiagonalBimoduleError::NonMonomialRelations`] if the algebra has
-    ///   non-monomial relations (path enumeration requires a monomial ideal).
+    ///   non-monomial relations.
     /// - [`DiagonalBimoduleError::TooManyPaths`] if enumeration exceeds
     ///   `max_paths`.
     pub fn try_new(
@@ -305,37 +463,90 @@ where
             .try_into()
             .map_err(DiagonalBimoduleError::NonMonomialRelations)?;
 
-        let (left_matrices, right_matrices, basis_idx) = build_action_matrices(&mon, max_paths)?;
+        let (basis_by_pair, left_matrices, right_matrices) =
+            build_action_matrices(&mon, max_paths)?;
 
         Ok(Self {
             algebra,
+            basis_by_pair,
             left_matrices,
             right_matrices,
-            basis_idx,
         })
     }
 }
 
-impl<V, E, Coeffs> QuiverBimodule<V, E, Coeffs, DMatrix<bool>> for DiagonalBimodule<V, E, Coeffs>
+impl<V, E, Coeffs> QuiverBimodule<V, E, Coeffs, Vec<E>> for DiagonalBimodule<V, E, Coeffs>
 where
     V: std::hash::Hash + Eq + Clone,
     E: std::hash::Hash + Eq + Clone,
-    Coeffs: Ring,
+    Coeffs: Field,
 {
     fn algebra(&self) -> &Arc<QuiverWithRelations<V, E, Coeffs>> {
         &self.algebra
     }
 
-    fn left_action(&self, alpha: &E, w: &V) -> Option<DMatrix<bool>> {
-        self.left_matrices.get(&(alpha.clone(), w.clone())).cloned()
+    fn peirce_basis(&self, v: &V, w: &V) -> &[Vec<E>] {
+        self.basis_by_pair
+            .get(&(v.clone(), w.clone()))
+            .map_or(&[], Vec::as_slice)
     }
 
-    fn right_action(&self, beta: &E, v: &V) -> Option<DMatrix<bool>> {
-        self.right_matrices.get(&(beta.clone(), v.clone())).cloned()
+    fn left_act(&self, alpha: &E, elt: &PeirceElement<V, Coeffs>) -> PeirceElement<V, Coeffs> {
+        let Some((src_a, tgt_a)) = self.algebra.quiver().edge_endpoint_labels(alpha) else {
+            return PeirceElement::zero(elt.left.clone(), elt.right.clone(), 0);
+        };
+        let out_dim = self.peirce_dim(&src_a, &elt.right);
+        if elt.left != tgt_a {
+            return PeirceElement::zero(src_a, elt.right.clone(), out_dim);
+        }
+        let mat = &self.left_matrices[&(alpha.clone(), elt.right.clone())];
+        let mut out = vec![Coeffs::zero(); out_dim];
+        for j in 0..elt.coords.len() {
+            if elt.coords[j].is_zero() {
+                continue;
+            }
+            for i in 0..out_dim {
+                if mat[(i, j)] {
+                    out[i] += elt.coords[j].clone();
+                }
+            }
+        }
+        PeirceElement {
+            left: src_a,
+            right: elt.right.clone(),
+            coords: out,
+        }
+    }
+
+    fn right_act(&self, beta: &E, elt: &PeirceElement<V, Coeffs>) -> PeirceElement<V, Coeffs> {
+        let Some((src_b, tgt_b)) = self.algebra.quiver().edge_endpoint_labels(beta) else {
+            return PeirceElement::zero(elt.left.clone(), elt.right.clone(), 0);
+        };
+        let out_dim = self.peirce_dim(&elt.left, &tgt_b);
+        if elt.right != src_b {
+            return PeirceElement::zero(elt.left.clone(), tgt_b, out_dim);
+        }
+        let mat = &self.right_matrices[&(beta.clone(), elt.left.clone())];
+        let mut out = vec![Coeffs::zero(); out_dim];
+        for j in 0..elt.coords.len() {
+            if elt.coords[j].is_zero() {
+                continue;
+            }
+            for i in 0..out_dim {
+                if mat[(i, j)] {
+                    out[i] += elt.coords[j].clone();
+                }
+            }
+        }
+        PeirceElement {
+            left: elt.left.clone(),
+            right: tgt_b,
+            coords: out,
+        }
     }
 }
 
-// ── Internal path-basis enumeration and matrix construction ───────────────
+// ── Internal path-basis enumeration and matrix construction ───────────────────
 
 #[allow(clippy::type_complexity)]
 fn build_action_matrices<V, E>(
@@ -343,9 +554,9 @@ fn build_action_matrices<V, E>(
     max_paths: usize,
 ) -> Result<
     (
+        HashMap<(V, V), Vec<Vec<E>>>,
         HashMap<(E, V), DMatrix<bool>>,
         HashMap<(E, V), DMatrix<bool>>,
-        HashMap<(V, V), HashMap<Vec<E>, usize>>,
     ),
     DiagonalBimoduleError,
 >
@@ -358,9 +569,9 @@ where
     let all_vertices: Vec<V> = algebra.vertices().collect();
     let all_edges: Vec<E> = algebra.edge_labels().collect();
 
-    // ── Build admissible path basis grouped by (source, target) ──────────
+    // ── Build admissible path basis grouped by (source, target) ──────────────
     //
-    // An empty Vec<E> represents the idempotent e_v (present only on the diagonal).
+    // Empty Vec<E> represents the idempotent e_v (present only on the diagonal).
     let mut basis_by_pair: HashMap<(V, V), Vec<Vec<E>>> = HashMap::new();
     let mut basis_idx: HashMap<(V, V), HashMap<Vec<E>, usize>> = HashMap::new();
 
@@ -414,7 +625,7 @@ where
         }
     }
 
-    // ── Build action matrices ─────────────────────────────────────────────
+    // ── Build action matrices ─────────────────────────────────────────────────
 
     let empty_basis: Vec<Vec<E>> = Vec::new();
     let mut left_matrices: HashMap<(E, V), DMatrix<bool>> = HashMap::new();
@@ -425,9 +636,7 @@ where
             continue;
         };
         for w in &all_vertices {
-            // L_{α,w}: e_{tgt_a} A e_w → e_{src_a} A e_w
-            // domain  = paths from tgt_a to w
-            // codomain = paths from src_a to w
+            // L_{α,w}: `kQ^{op}` perspective (tgt_a, w) → (src_a, w)  [`kQ` perspective: e_w A e_{tgt_a} → e_w A e_{src_a}]
             let dom_basis = basis_by_pair
                 .get(&(tgt_a.clone(), w.clone()))
                 .unwrap_or(&empty_basis);
@@ -435,9 +644,7 @@ where
             let cod_idx = basis_idx.get(&cod_pair);
             let nrows = basis_by_pair.get(&cod_pair).map_or(0, Vec::len);
             let mut mat = DMatrix::<bool>::from_element(nrows, dom_basis.len(), false);
-
             for (j, q) in dom_basis.iter().enumerate() {
-                // Prepend α: [α, q₁, …, qₖ]
                 let mut new_path = vec![alpha.clone()];
                 new_path.extend_from_slice(q);
                 if let Some(i) = cod_idx.and_then(|m| m.get(&new_path)).copied() {
@@ -453,7 +660,7 @@ where
             continue;
         };
         for v in &all_vertices {
-            // R_{β,v}: e_v A e_{src_b} → e_v A e_{tgt_b}
+            // R_{β,v}: `kQ^{op}` perspective (v, src_b) → (v, tgt_b)  [`kQ` perspective: e_{src_b} A e_v → e_{tgt_b} A e_v]
             let dom_basis = basis_by_pair
                 .get(&(v.clone(), src_b.clone()))
                 .unwrap_or(&empty_basis);
@@ -461,9 +668,7 @@ where
             let cod_idx = basis_idx.get(&cod_pair);
             let nrows = basis_by_pair.get(&cod_pair).map_or(0, Vec::len);
             let mut mat = DMatrix::from_element(nrows, dom_basis.len(), false);
-
             for (j, q) in dom_basis.iter().enumerate() {
-                // Append β: [q₁, …, qₖ, β]
                 let mut new_path = q.clone();
                 new_path.push(beta.clone());
                 if let Some(i) = cod_idx.and_then(|m| m.get(&new_path)).copied() {
@@ -474,7 +679,7 @@ where
         }
     }
 
-    Ok((left_matrices, right_matrices, basis_idx))
+    Ok((basis_by_pair, left_matrices, right_matrices))
 }
 
 #[cfg(test)]
@@ -483,22 +688,6 @@ mod tests {
 
     use super::*;
     use crate::quiver::{BasisElt, PathAlgebra, Quiver, tests::make_kronecker_quiver};
-
-    fn is_zero_mat<T>(m: &DMatrix<T>, is_zero_entry: fn(&T) -> bool) -> bool {
-        m.iter().all(|x| is_zero_entry(x))
-    }
-
-    fn promotion_bool(m: DMatrix<bool>) -> DMatrix<f64> {
-        let mut to_return = DMatrix::zeros(m.nrows(), m.ncols());
-        for idx in 0..m.nrows() {
-            for jdx in 0..m.ncols() {
-                if m[(idx, jdx)] {
-                    to_return[(idx, jdx)] = 1.0;
-                }
-            }
-        }
-        to_return
-    }
 
     fn make_a3_with_rel() -> Arc<QuiverWithRelations<&'static str, &'static str, f64>> {
         // 0 --"a"--> 1 --"b"--> 2,  relation ab = 0
@@ -518,48 +707,91 @@ mod tests {
         ))
     }
 
-    // ── Matrix dimensions reflect the Peirce decomposition ───────────────
+    // ── peirce_basis reflects the Peirce decomposition ────────────────────────
 
     #[test]
-    fn a2_left_action_shape() {
+    fn a2_peirce_basis_dimensions() {
         let q = crate::quiver::tests::make_a2_quiver();
         let qwr = Arc::new(QuiverWithRelations::<_, _, f64>::from_quiver_no_relations(
             Arc::new(q),
         ));
         let bim = DiagonalBimodule::try_new(qwr, 100).unwrap();
 
-        // L_{a,"1"}: e_{1} A e_{1} → e_{0} A e_{1}
-        // e_{1} A e_{1} = {e₁}  (dim 1),  e_{0} A e_{1} = {a}  (dim 1)
-        let mat = bim.left_action(&"a", &"beta").unwrap();
-        assert_eq!((mat.nrows(), mat.ncols()), (1, 1));
-        assert_eq!(mat[(0, 0)], true);
-
-        // L_{a,"0"}: e_{1} A e_{0} → e_{0} A e_{0}
-        // e_{1} A e_{0} = {}  (dim 0)
-        let mat = bim.left_action(&"a", &"alpha").unwrap();
-        assert_eq!((mat.nrows(), mat.ncols()), (1, 0));
+        // e_alpha kQ^op e_alpha = {e_alpha}  (dim 1)
+        assert_eq!(bim.peirce_basis(&"alpha", &"alpha").len(), 1);
+        // e_beta kQ^op e_alpha = {a}  (dim 1)  [a: alpha→beta, so a ∈ e_{t(a)} A e_{s(a)} = e_beta A e_alpha]
+        assert_eq!(bim.peirce_basis(&"alpha", &"beta").len(), 1);
+        // e_alpha kQ^op e_beta = {}  (dim 0)
+        assert_eq!(bim.peirce_basis(&"beta", &"alpha").len(), 0);
+        // e_beta kQ^op e_beta = {e_beta}  (dim 1)
+        assert_eq!(bim.peirce_basis(&"beta", &"beta").len(), 1);
     }
 
     #[test]
-    fn a2_right_action_shape() {
+    fn a2_peirce_basis_labels() {
         let q = crate::quiver::tests::make_a2_quiver();
         let qwr = Arc::new(QuiverWithRelations::<_, _, f64>::from_quiver_no_relations(
             Arc::new(q),
         ));
         let bim = DiagonalBimodule::try_new(qwr, 100).unwrap();
 
-        // R_{a,"0"}: e_{0} A e_{0} → e_{0} A e_{1}
-        // e_{0} A e_{0} = {e₀}  (dim 1),  e_{0} A e_{1} = {a}  (dim 1)
-        let mat = bim.right_action(&"a", &"alpha").unwrap();
-        assert_eq!((mat.nrows(), mat.ncols()), (1, 1));
-        assert_eq!(mat[(0, 0)], true);
-
-        // R_{a,"1"}: e_{1} A e_{0} → e_{1} A e_{1},  domain empty
-        let mat = bim.right_action(&"a", &"beta").unwrap();
-        assert_eq!((mat.nrows(), mat.ncols()), (1, 0));
+        // e_alpha kQ^op e_alpha basis = [[] (idempotent)]
+        assert_eq!(bim.peirce_basis(&"alpha", &"alpha"), &[vec![] as Vec<&str>]);
+        // e_beta kQ^op e_alpha basis = [["a"]]
+        assert_eq!(bim.peirce_basis(&"alpha", &"beta"), &[vec!["a"]]);
     }
 
-    // ── Axiom checks ─────────────────────────────────────────────────────
+    // ── Element-level actions ─────────────────────────────────────────────────
+
+    #[test]
+    fn a2_left_act_on_basis_element() {
+        let q = crate::quiver::tests::make_a2_quiver();
+        let qwr = Arc::new(QuiverWithRelations::<_, _, f64>::from_quiver_no_relations(
+            Arc::new(q),
+        ));
+        let bim = DiagonalBimodule::try_new(qwr, 100).unwrap();
+
+        // e_beta is the unique basis element of e_beta kQ^op e_beta.
+        // L_a acts: a · e_beta = a (the unique basis element of e_beta kQ^op e_alpha).
+        let e_beta = PeirceElement::basis_vec("beta", "beta", 1, 0);
+        let result = bim.left_act(&"a", &e_beta);
+        assert_eq!(result.left, "alpha");
+        assert_eq!(result.right, "beta");
+        assert_eq!(result.coords, vec![1.0]);
+    }
+
+    #[test]
+    fn a2_right_act_on_basis_element() {
+        let q = crate::quiver::tests::make_a2_quiver();
+        let qwr = Arc::new(QuiverWithRelations::<_, _, f64>::from_quiver_no_relations(
+            Arc::new(q),
+        ));
+        let bim = DiagonalBimodule::try_new(qwr, 100).unwrap();
+
+        // e_alpha is the unique basis element of e_alpha kQ^op e_alpha.
+        // R_a acts: e_alpha · a = a (the unique basis element of e_beta kQ^op e_alpha).
+        let e_alpha = PeirceElement::basis_vec("alpha", "alpha", 1, 0);
+        let result = bim.right_act(&"a", &e_alpha);
+        assert_eq!(result.left, "alpha");
+        assert_eq!(result.right, "beta");
+        assert_eq!(result.coords, vec![1.0]);
+    }
+
+    #[test]
+    fn left_act_wrong_peirce_index_returns_zero() {
+        // L_a expects elt.left == t(a) = "beta".
+        // Passing elt.left == "alpha" should return zero.
+        let q = crate::quiver::tests::make_a2_quiver();
+        let qwr = Arc::new(QuiverWithRelations::<_, _, f64>::from_quiver_no_relations(
+            Arc::new(q),
+        ));
+        let bim = DiagonalBimodule::try_new(qwr, 100).unwrap();
+        let wrong = PeirceElement::basis_vec("alpha", "beta", 1, 0);
+        let result = bim.left_act(&"a", &wrong);
+        assert!(result.is_zero());
+    }
+
+    // ── Axiom checks ──────────────────────────────────────────────────────────
 
     #[test]
     fn a2_diagonal_satisfies_axioms() {
@@ -567,23 +799,18 @@ mod tests {
         let qwr = Arc::new(QuiverWithRelations::<_, _, f64>::from_quiver_no_relations(
             Arc::new(q),
         ));
-        let bim = DiagonalBimodule::try_new(qwr.clone(), 100).unwrap();
-        let v = bim
-            .check_bimodule_axioms(promotion_bool, |mat| is_zero_mat(mat, |x| *x == 0.0))
-            .unwrap();
+        let bim = DiagonalBimodule::try_new(qwr, 100).unwrap();
+        let v = bim.check_bimodule_axioms();
         assert!(v.is_empty(), "{v:?}");
     }
 
     #[test]
     fn kronecker_diagonal_satisfies_axioms() {
-        let qwr = QuiverWithRelations::<_, _, f64>::from_quiver_no_relations(Arc::new(
-            make_kronecker_quiver(),
+        let qwr = Arc::new(QuiverWithRelations::<_, _, f64>::from_quiver_no_relations(
+            Arc::new(make_kronecker_quiver()),
         ));
-        let qwr = Arc::new(qwr);
         let bim = DiagonalBimodule::try_new(qwr, 100).unwrap();
-        let v = bim
-            .check_bimodule_axioms(promotion_bool, |m| is_zero_mat(&m, |x| *x == 0.0))
-            .unwrap();
+        let v = bim.check_bimodule_axioms();
         assert!(v.is_empty(), "{v:?}");
     }
 
@@ -591,34 +818,29 @@ mod tests {
     fn a3_with_relation_satisfies_axioms() {
         let qwr = make_a3_with_rel();
         let bim = DiagonalBimodule::try_new(qwr, 100).unwrap();
-        let v = bim
-            .check_bimodule_axioms(promotion_bool, |m| is_zero_mat(&m, |x| *x == 0.0))
-            .unwrap();
+        let v = bim.check_bimodule_axioms();
         assert!(v.is_empty(), "{v:?}");
     }
 
-    // ── Peirce piece dimensions ───────────────────────────────────────────
+    // ── Peirce piece zero-ness ────────────────────────────────────────────────
 
     #[test]
     fn a3_with_rel_zero_peirce_piece() {
-        // In A₃/(ab), e₀ A e₂ = 0 because the only path 0→2 is "ab" = 0.
-        // L_{a,"2"}: e_{1} A e_{2} → e_{0} A e_{2} should have 0 rows.
+        // In A₃/(ab), e_2 kQ^op e_0 = 0 because path "ab" (0→1→2) is zero.
         let qwr = make_a3_with_rel();
         let bim = DiagonalBimodule::try_new(qwr, 100).unwrap();
-        let mat = bim.left_action(&"a", &"2").unwrap();
-        assert_eq!(mat.nrows(), 0, "e_0 A e_2 should be zero");
+        assert_eq!(bim.peirce_dim(&"0", &"2"), 0);
     }
 
     #[test]
-    fn kronecker_peirce_piece_e0_a_e1_has_dimension_two() {
-        // In the Kronecker algebra, e₀ A e₁ = span{a, b}  (dim 2).
-        // R_{a,"0"}: e_{0} A e_{0} → e_{0} A e_{1}  → should be 2×1.
-        let qwr = QuiverWithRelations::<_, _, f64>::from_quiver_no_relations(Arc::new(
-            make_kronecker_quiver(),
+    fn kronecker_peirce_piece_dimensions() {
+        let qwr = Arc::new(QuiverWithRelations::<_, _, f64>::from_quiver_no_relations(
+            Arc::new(make_kronecker_quiver()),
         ));
-        let qwr = Arc::new(qwr);
         let bim = DiagonalBimodule::try_new(qwr, 100).unwrap();
-        let mat = bim.right_action(&"a", &"alpha").unwrap();
-        assert_eq!((mat.nrows(), mat.ncols()), (2, 1));
+        assert_eq!(bim.peirce_dim(&"alpha", &"beta"), 2);
+        assert_eq!(bim.peirce_dim(&"alpha", &"alpha"), 1);
+        assert_eq!(bim.peirce_dim(&"beta", &"beta"), 1);
+        assert_eq!(bim.peirce_dim(&"beta", &"alpha"), 0);
     }
 }

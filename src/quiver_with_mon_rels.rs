@@ -138,7 +138,7 @@ where
     ///
     /// # Errors
     ///
-    /// If the algebra kQ/I is not gentle
+    /// If the algebra kQ^op/I^op is not gentle
     /// give the reason why.
     pub fn is_gentle(&self) -> Result<(), String>
     where

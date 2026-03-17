@@ -198,7 +198,16 @@ where
         true
     }
 
-    #[allow(clippy::missing_panics_doc)]
+    /// Multiplication of monomials in `kQ^{op}`
+    /// If the product is `0` due to composability reasons
+    /// then return `None`
+    /// Otherwise the product is another monomial in
+    /// the arrows and vertex idempotents.
+    ///
+    /// # Panics
+    ///
+    /// We expect the provided arrows and vertices in `l`
+    /// and `r` to actually be in the quiver.
     pub fn multiply_basis(
         &self,
         l: &BasisElt<VertexLabel, EdgeLabel>,
@@ -353,7 +362,7 @@ where
         (new_self, adjoint_pairs, new_framing_arrows)
     }
 
-    pub fn ginzburgify(
+    fn ginzburgify(
         self,
         dagger: impl Fn(&EdgeLabel) -> EdgeLabel,
         self_loop: impl Fn(&VertexLabel) -> EdgeLabel,
@@ -367,6 +376,25 @@ where
             new_self.add_edge(v.clone(), v, loop_label);
         }
         (new_self, adjoint_pairs, new_self_loops)
+    }
+
+    pub fn ginzburgify_and_cubic<Coeffs: Ring>(
+        self,
+        dagger: impl Fn(&EdgeLabel) -> EdgeLabel,
+        self_loop: impl Fn(&VertexLabel) -> EdgeLabel,
+        one_coeffs: &Coeffs,
+    ) -> (Arc<Self>, PathAlgebra<VertexLabel, EdgeLabel, Coeffs>) {
+        let (new_self, adjoint_pairs, new_self_loops) = self.ginzburgify(dagger, self_loop);
+        let new_self_arc = Arc::new(new_self);
+        (
+            new_self_arc.clone(),
+            PathAlgebra::create_ginzburg_cubic(
+                new_self_arc,
+                adjoint_pairs,
+                new_self_loops,
+                one_coeffs,
+            ),
+        )
     }
 }
 
@@ -407,7 +435,7 @@ where
     ///
     /// # Panics
     ///
-    /// Every summand in the `kQ` must be
+    /// Every summand in the `kQ^{op}` must be
     /// either a `e_v` for some `v` in the quiver
     /// or `a_1 ... a_n` a composable nonempty sequence of arrows
     pub fn new(
@@ -444,12 +472,12 @@ where
     /// through the arrows of the original quiver and `x_dagger` is the corresponding arrow in the opposite direction.
     /// You are also given `self_loops` which are the newly inserted self-loops at each vertex of the original quiver.
     /// This insertion of extra dagger arrows and extra self loops
-    /// changes the quiver from `Q` to `Q''` and the path algebra from `kQ` to `kQ''`.
+    /// changes the quiver from `Q` to `Q''` and the path algebra from `kQ^{op}` to `kQ''^{op}`.
     ///
     /// From this `W = \sum_{x in arrows Q} omega_{tgt(x)} x x_dagger - omega_{src(x)} x_dagger x`
-    /// is constructed and returned as an element of the path algebra `kQ''`.
+    /// is constructed and returned as an element of the path algebra `kQ''^{op}'`.
     #[allow(clippy::missing_panics_doc)]
-    pub fn create_ginzburg_cubic(
+    fn create_ginzburg_cubic(
         quiver: Arc<Quiver<VertexLabel, EdgeLabel>>,
         arrows_and_daggers: Vec<(EdgeLabel, EdgeLabel)>,
         self_loops: Vec<EdgeLabel>,
