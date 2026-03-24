@@ -7,7 +7,7 @@ use std::{
 
 use petgraph::{graph::NodeIndex, prelude::EdgeIndex, stable_graph::StableGraph, visit::EdgeRef};
 
-use crate::checked_arith::Ring;
+use crate::quiver_algebra::checked_arith::Ring;
 
 #[derive(Debug)]
 #[must_use]
@@ -636,6 +636,10 @@ where
     ///
     /// TODO
     pub fn cyclic_derivative(&mut self, wrt_edge: &EdgeLabel) {
+        let wrt_edge_endpoints = self
+            .quiver()
+            .edge_endpoint_labels(wrt_edge)
+            .expect("This is an edge of the quiver");
         let mut new_linear_combination =
             HashMap::with_capacity(self.linear_combination_paths.len());
         for (k, v) in self.linear_combination_paths.drain().filter_map(|(k, v)| {
@@ -659,7 +663,14 @@ where
                 let z = k_now.pop();
                 debug_assert!(z.is_some_and(|z| z == *wrt_edge));
                 if k_now.is_empty() {
-                    todo!()
+                    debug_assert!(
+                        wrt_edge_endpoints.0 == wrt_edge_endpoints.1,
+                        "There is a summand which is a single edge in a cyclic word so that edge should have been a self loop."
+                    );
+                    new_linear_combination.insert(
+                        BasisElt::Idempotent(wrt_edge_endpoints.0.clone()),
+                        v.clone(),
+                    );
                 } else {
                     new_linear_combination.insert(
                         BasisElt::Path(

@@ -1,6 +1,6 @@
 use std::{ops::MulAssign, sync::Arc};
 
-use crate::{
+use crate::quiver_algebra::{
     checked_arith::{CheckedAdd, CheckedAddAssign, CheckedMul, CheckedMulAssign, Ring},
     quiver::{PathAlgebra, Quiver},
     quiver_rep::QuiverRep,
@@ -105,16 +105,17 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::quiver;
+    use crate::quiver_algebra;
 
     use super::*;
 
     #[test]
     fn test_ginzburg() {
         use super::PathAlgebra;
-        use crate::quiver::BasisElt;
+        use crate::quiver_algebra::quiver::BasisElt;
         use std::sync::Arc;
-        let (ginzburg_quiver, _adjoint_pairs, _self_loops) = quiver::tests::make_ginzburg_quiver();
+        let (ginzburg_quiver, _adjoint_pairs, _self_loops) =
+            quiver_algebra::quiver::tests::make_ginzburg_quiver();
         let ginzburg_quiver = Arc::new(ginzburg_quiver);
 
         let x_omega = PathAlgebra::singleton(

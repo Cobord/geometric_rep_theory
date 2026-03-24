@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
 use nalgebra::DMatrix;
 
-use crate::{
+use crate::quiver_algebra::{
     checked_arith::{Field, Ring},
     quiver::BasisElt,
     quiver_with_mon_rels::{NonMonomialIdeal, QuiverWithMonomialRelations},
@@ -687,7 +687,9 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
-    use crate::quiver::{BasisElt, PathAlgebra, Quiver, tests::make_kronecker_quiver};
+    use crate::quiver_algebra::quiver::{
+        BasisElt, PathAlgebra, Quiver, tests::make_kronecker_quiver,
+    };
 
     fn make_a3_with_rel() -> Arc<QuiverWithRelations<&'static str, &'static str, f64>> {
         // 0 --"a"--> 1 --"b"--> 2,  relation ab = 0
@@ -711,7 +713,7 @@ mod tests {
 
     #[test]
     fn a2_peirce_basis_dimensions() {
-        let q = crate::quiver::tests::make_a2_quiver();
+        let q = crate::quiver_algebra::quiver::tests::make_a2_quiver();
         let qwr = Arc::new(QuiverWithRelations::<_, _, f64>::from_quiver_no_relations(
             Arc::new(q),
         ));
@@ -729,7 +731,7 @@ mod tests {
 
     #[test]
     fn a2_peirce_basis_labels() {
-        let q = crate::quiver::tests::make_a2_quiver();
+        let q = crate::quiver_algebra::quiver::tests::make_a2_quiver();
         let qwr = Arc::new(QuiverWithRelations::<_, _, f64>::from_quiver_no_relations(
             Arc::new(q),
         ));
@@ -745,7 +747,7 @@ mod tests {
 
     #[test]
     fn a2_left_act_on_basis_element() {
-        let q = crate::quiver::tests::make_a2_quiver();
+        let q = crate::quiver_algebra::quiver::tests::make_a2_quiver();
         let qwr = Arc::new(QuiverWithRelations::<_, _, f64>::from_quiver_no_relations(
             Arc::new(q),
         ));
@@ -762,7 +764,7 @@ mod tests {
 
     #[test]
     fn a2_right_act_on_basis_element() {
-        let q = crate::quiver::tests::make_a2_quiver();
+        let q = crate::quiver_algebra::quiver::tests::make_a2_quiver();
         let qwr = Arc::new(QuiverWithRelations::<_, _, f64>::from_quiver_no_relations(
             Arc::new(q),
         ));
@@ -781,7 +783,7 @@ mod tests {
     fn left_act_wrong_peirce_index_returns_zero() {
         // L_a expects elt.left == t(a) = "beta".
         // Passing elt.left == "alpha" should return zero.
-        let q = crate::quiver::tests::make_a2_quiver();
+        let q = crate::quiver_algebra::quiver::tests::make_a2_quiver();
         let qwr = Arc::new(QuiverWithRelations::<_, _, f64>::from_quiver_no_relations(
             Arc::new(q),
         ));
@@ -795,7 +797,7 @@ mod tests {
 
     #[test]
     fn a2_diagonal_satisfies_axioms() {
-        let q = crate::quiver::tests::make_a2_quiver();
+        let q = crate::quiver_algebra::quiver::tests::make_a2_quiver();
         let qwr = Arc::new(QuiverWithRelations::<_, _, f64>::from_quiver_no_relations(
             Arc::new(q),
         ));

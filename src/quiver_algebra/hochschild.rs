@@ -6,7 +6,7 @@ use std::{
 
 use nonempty::NonEmpty;
 
-use crate::{
+use crate::quiver_algebra::{
     checked_arith::Field,
     quiver::BasisElt,
     quiver_with_mon_rels::{NonMonomialIdeal, QuiverWithMonomialRelations},
@@ -624,7 +624,7 @@ where
             .map(|degree| self.cochain_dim(degree))
             .collect::<Vec<_>>();
         let ranks = (0..=max_degree)
-            .map(|degree| crate::checked_arith::rank(&self.differential_matrix(degree)))
+            .map(|degree| super::checked_arith::rank(&self.differential_matrix(degree)))
             .collect::<Vec<_>>();
 
         let mut hh = HashMap::<CohomologicalDegree, usize>::new();
@@ -650,7 +650,7 @@ where
 mod tests {
     use std::sync::Arc;
 
-    use crate::{
+    use crate::quiver_algebra::{
         checked_arith::Field, quiver::Quiver, quiver_with_mon_rels::QuiverWithMonomialRelations,
     };
 
@@ -728,7 +728,7 @@ mod tests {
     // OutDer = k^4 / k^1 = k^3.
     #[test]
     fn hh_kronecker_no_relations() {
-        let kq = crate::quiver::tests::make_kronecker_quiver();
+        let kq = crate::quiver_algebra::quiver::tests::make_kronecker_quiver();
         let mut hh = no_rels(kq);
         let dims = hh_dims(&mut hh, 3);
         assert_eq!(dims[0], 1, "HH^0(Kronecker) = k");

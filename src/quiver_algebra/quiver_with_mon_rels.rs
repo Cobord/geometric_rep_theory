@@ -2,7 +2,7 @@ use std::{collections::HashSet, fmt::Debug, sync::Arc};
 
 use nonempty::NonEmpty;
 
-use crate::{
+use crate::quiver_algebra::{
     checked_arith::Field,
     hochschild::IndexInList,
     quiver::{BasisElt, Quiver},

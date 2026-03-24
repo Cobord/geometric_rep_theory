@@ -3,10 +3,10 @@ use std::{collections::HashMap, sync::Arc};
 
 use nonempty::NonEmpty;
 
-use crate::checked_arith::{
+use crate::quiver_algebra::checked_arith::{
     CheckedAdd, CheckedAddAssign, CheckedArithError, CheckedMul, CheckedMulAssign, Ring,
 };
-use crate::quiver::{BasisElt, PathAlgebra, Quiver};
+use crate::quiver_algebra::quiver::{BasisElt, PathAlgebra, Quiver};
 
 #[must_use]
 pub struct QuiverRep<VertexLabel, EdgeLabel, MatrixType>
@@ -263,7 +263,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::quiver::Quiver;
+    use crate::quiver_algebra::quiver::Quiver;
     use std::{fmt::Debug, sync::Arc};
 
     // Single-edge quiver: "0" --"a"--> "1"
@@ -409,7 +409,7 @@ mod tests {
         // Kronecker quiver; both squares fail
         // φ_alpha=3, φ_beta=7  (wrong)
         // edge a: 7*2=14 ≠ 4*3=12  edge b: 7*3=21 ≠ 6*3=18
-        let q = Arc::new(crate::quiver::tests::make_kronecker_quiver());
+        let q = Arc::new(crate::quiver_algebra::quiver::tests::make_kronecker_quiver());
         let m = scalar_rep(q.clone(), [("a", 2.0), ("b", 3.0)]);
         let n = scalar_rep(q, [("a", 4.0), ("b", 6.0)]);
         let phi: HashMap<_, _> = [("alpha", 3.0_f64), ("beta", 7.0_f64)]
@@ -423,7 +423,7 @@ mod tests {
     #[test]
     fn is_intertwiner_partial_failure_kronecker() {
         // Only edge "b" fails: φ_beta * M(b) = 6*3=18 ≠ N(b)*φ_alpha = 7*3=21
-        let q = Arc::new(crate::quiver::tests::make_kronecker_quiver());
+        let q = Arc::new(crate::quiver_algebra::quiver::tests::make_kronecker_quiver());
         let m = scalar_rep(q.clone(), [("a", 2.0), ("b", 3.0)]);
         let n = scalar_rep(q, [("a", 4.0), ("b", 7.0)]);
         // φ_alpha=3, φ_beta=6 is correct for edge a (6*2=12==4*3=12) but wrong for b (6*3=18≠7*3=21)
@@ -449,11 +449,11 @@ mod tests {
 
     #[test]
     fn rep_descends_to_quotient_when_arrow_is_zero() {
-        use crate::quiver::BasisElt;
-        use crate::quiver::PathAlgebra;
-        use crate::quiver_with_rels::QuiverWithRelations;
+        use crate::quiver_algebra::quiver::BasisElt;
+        use crate::quiver_algebra::quiver::PathAlgebra;
+        use crate::quiver_algebra::quiver_with_rels::QuiverWithRelations;
 
-        let q = Arc::new(crate::quiver::tests::make_kronecker_quiver());
+        let q = Arc::new(crate::quiver_algebra::quiver::tests::make_kronecker_quiver());
         let rel_a = PathAlgebra::singleton(
             q.clone(),
             BasisElt::Path(nonempty::nonempty!["a"]),
@@ -465,7 +465,7 @@ mod tests {
         let m = scalar_rep(q, [("a", 0.0), ("b", 3.0)]);
         assert!(qwr.rep_descends(&m, |x: &f64| *x == 0.0));
 
-        let q = Arc::new(crate::quiver::tests::make_kronecker_quiver());
+        let q = Arc::new(crate::quiver_algebra::quiver::tests::make_kronecker_quiver());
         let rel_a =
             PathAlgebra::singleton(q.clone(), BasisElt::Path(nonempty::nonempty!["a"]), 0.0_f64);
         let qwr = QuiverWithRelations::new(q.clone(), vec![rel_a], Some(|x: &f64| *x == 0.0));
@@ -477,11 +477,11 @@ mod tests {
 
     #[test]
     fn rep_does_not_descend_when_arrow_is_nonzero() {
-        use crate::quiver::BasisElt;
-        use crate::quiver::PathAlgebra;
-        use crate::quiver_with_rels::QuiverWithRelations;
+        use crate::quiver_algebra::quiver::BasisElt;
+        use crate::quiver_algebra::quiver::PathAlgebra;
+        use crate::quiver_algebra::quiver_with_rels::QuiverWithRelations;
 
-        let q = Arc::new(crate::quiver::tests::make_kronecker_quiver());
+        let q = Arc::new(crate::quiver_algebra::quiver::tests::make_kronecker_quiver());
         let rel_a = PathAlgebra::singleton(
             q.clone(),
             BasisElt::Path(nonempty::nonempty!["a"]),
