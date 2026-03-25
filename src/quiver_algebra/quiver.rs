@@ -431,13 +431,12 @@ where
     EdgeLabel: Eq + Clone + std::hash::Hash,
     Coeffs: Ring,
 {
-    ///
+    /// Construct an element of kQ^{op} from a map of basis elements to coefficients.
     ///
     /// # Panics
     ///
-    /// Every summand in the `kQ^{op}` must be
-    /// either a `e_v` for some `v` in the quiver
-    /// or `a_1 ... a_n` a composable nonempty sequence of arrows
+    /// Panics if any key in `linear_combination_paths` is invalid for `quiver`: idempotents must
+    /// refer to vertices that exist, and paths must be composable sequences of arrows in the quiver.
     pub fn new(
         quiver: Arc<Quiver<VertexLabel, EdgeLabel>>,
         mut linear_combination_paths: HashMap<BasisElt<VertexLabel, EdgeLabel>, Coeffs>,
@@ -455,6 +454,7 @@ where
         }
     }
 
+    /// Construct a scalar multiple of a single basis element.
     pub fn singleton(
         quiver: Arc<Quiver<VertexLabel, EdgeLabel>>,
         linear_combination_paths: BasisElt<VertexLabel, EdgeLabel>,
@@ -630,11 +630,19 @@ where
         (self, acyclic_part)
     }
 
+    /// Replace `self` with its cyclic partial derivative with respect to `wrt_edge`.
     ///
+    /// This is intended to be applied to a cyclic word (superpotential W). For each occurrence
+    /// of `wrt_edge = aᵢ` in a term `c · [a₁, …, aₙ]`:
+    /// - If n > 1: contributes `c · [aᵢ₊₁, …, aₙ, a₁, …, aᵢ₋₁]`.
+    /// - If n = 1: the summand must be a self-loop for the word to be cyclic; contributes
+    ///   `c · e_{s(wrt_edge)}`, or 0 if `wrt_edge` does not appear.
     ///
     /// # Panics
     ///
-    /// TODO
+    /// Panics if `wrt_edge` is not an edge of the quiver. In debug builds, also panics if a
+    /// length-1 term contains `wrt_edge` but `wrt_edge` is not a self-loop (the input was not a
+    /// valid cyclic word).
     pub fn cyclic_derivative(&mut self, wrt_edge: &EdgeLabel) {
         let wrt_edge_endpoints = self
             .quiver()

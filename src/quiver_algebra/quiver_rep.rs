@@ -26,15 +26,16 @@ where
     EdgeLabel: Eq + std::hash::Hash + Clone,
     MatrixType: CheckedAdd + CheckedAddAssign + CheckedMul + CheckedMulAssign + Clone,
 {
+    /// Construct a representation of `quiver` from maps on edges and vertices.
     ///
+    /// Keys in `edge_reps` or `vertex_reps` that do not belong to the quiver are silently
+    /// discarded. If `check_idempotency` is provided, every vertex matrix is verified to satisfy
+    /// `M² = M` (using the supplied equality function).
     ///
     /// # Errors
     ///
-    /// If we have not given the matrix associated to every edge, then this is
-    /// not enough information for a quiver representation
-    ///
-    /// If we are doing `check_idempotency` and any of the vertex reps is not idempotent,
-    /// then this is not a valid quiver rep.
+    /// Returns `Err((vertex_reps, edge_reps))` if any arrow in the quiver is missing a matrix
+    /// entry, any vertex is missing a matrix entry, or idempotency fails.
     #[allow(clippy::missing_panics_doc, clippy::type_complexity)]
     pub fn new(
         quiver: Arc<Quiver<VertexLabel, EdgeLabel>>,
@@ -80,12 +81,14 @@ where
         })
     }
 
+    /// Replace the matrix assigned to `edge`. Does nothing if `edge` is not in the quiver.
     pub fn set_edge_rep(&mut self, edge: &EdgeLabel, rep: MatrixType) {
         if let Some(v) = self.edge_reps.get_mut(edge) {
             *v = rep;
         }
     }
 
+    /// Return the matrix assigned to `edge`, or `None` if `edge` is not in the quiver.
     pub fn get_edge_rep(&self, edge: &EdgeLabel) -> Option<&MatrixType> {
         self.edge_reps.get(edge)
     }
@@ -95,17 +98,18 @@ where
         &self.quiver
     }
 
+    /// Evaluate the representation on a basis element (path or idempotent).
     ///
+    /// For a path `[a₁, …, aₙ]` returns `M(a₁) * … * M(aₙ)`. For an idempotent `e_v` returns
+    /// the stored vertex matrix `M(v)`.
     ///
     /// # Errors
     ///
-    /// There may be matrix dimension errors if it is a product of factors
-    /// for each arrow on the path
+    /// Returns an error if any matrix multiplication fails due to incompatible dimensions.
     ///
     /// # Panics
     ///
-    /// Everything on the path is actually an arrow of the quiver.
-    /// Or it is just a vertex and that vertex is actually a vertex of the quiver.
+    /// Panics if any arrow on the path or the vertex is not present in the quiver.
     pub fn mat_from_path_or_vertex(
         &self,
         path: BasisElt<VertexLabel, EdgeLabel>,
@@ -120,15 +124,15 @@ where
         }
     }
 
-    ///
+    /// Evaluate the representation on a non-empty path, returning `M(a₁) * … * M(aₙ)`.
     ///
     /// # Errors
     ///
-    /// There may be matrix dimension errors
+    /// Returns an error if any matrix multiplication fails due to incompatible dimensions.
     ///
     /// # Panics
     ///
-    /// Everything on the path is actually an arrow of the quiver.
+    /// Panics if any arrow on the path is not present in the quiver.
     pub fn mat_from_path(
         &self,
         path: NonEmpty<EdgeLabel>,
@@ -222,17 +226,18 @@ where
         Ok(failing_edges)
     }
 
-    ///
+    /// Evaluate the representation on an element of the path algebra, returning the corresponding
+    /// linear combination of matrices: Σ cᵢ · M(pᵢ).
     ///
     /// # Errors
     ///
-    /// There may be matrix dimension errors
+    /// Returns an error if any matrix multiplication or addition fails due to incompatible
+    /// dimensions.
     ///
     /// # Panics
     ///
-    /// The path algebra element should all have the same endpoints
-    /// so that it defines an element of `End(V_s, V_t)` for consistent s and t
-    /// source and target nodes.
+    /// Panics if the summands of `path_algebra` do not all share the same source and target
+    /// vertices (i.e. the element is not in a single Peirce piece).
     pub fn mat_from_path_algebra<Coeffs>(
         &self,
         path_algebra: PathAlgebra<VertexLabel, EdgeLabel, Coeffs>,

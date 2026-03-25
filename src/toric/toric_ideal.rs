@@ -125,13 +125,21 @@ impl<const N: usize, U: CoordinateRingRepr> CoordinateRingPresentation<N, U> {
         }
     }
 
+    /// Verify that every binomial generator evaluates to zero under the representation `U`.
+    ///
+    /// For each generator `p⁺ - p⁻`, checks that the product of `representing_vars[i]`
+    /// raised to the power `e⁺ᵢ` equals the product raised to `e⁻ᵢ`, using
+    /// `CoordinateRingRepr::multiply` and `raise_power`.
+    ///
     /// # Errors
     ///
-    /// TODO
+    /// Returns `Err(failures)` where `failures` lists every binomial that does not evaluate to
+    /// zero.
     ///
     /// # Panics
     ///
-    /// TODO
+    /// Panics if `N == 0` (the const generic must be at least 1 so that `reduce` has an initial
+    /// element).
     pub fn check(&self) -> Result<(), Vec<Binomial<N>>> {
         let mut failures = vec![];
         for cur_binom in &self.generators {
@@ -162,6 +170,11 @@ impl<const N: usize, U: CoordinateRingRepr> CoordinateRingPresentation<N, U> {
         }
     }
 
+    /// Embed this presentation into a larger ring with `MORE` additional variables.
+    ///
+    /// All binomial generators are extended to `N_PLUS_MORE` variables (new exponents are zero).
+    /// If `after_or_before` is `true`, the `MORE` new variables `new_us` are appended after the
+    /// existing `N` variables; if `false`, they are prepended before them.
     pub fn extend_irrelevant<const MORE: usize, const N_PLUS_MORE: usize>(
         self,
         new_us: &[U; MORE],
@@ -192,9 +205,14 @@ impl<const N: usize, U: CoordinateRingRepr> CoordinateRingPresentation<N, U> {
         }
     }
 
+    /// Merge two presentations by taking the union of their binomial generators.
+    ///
+    /// When `check` is `true`, the two presentations must have identical `representing_vars`
+    /// arrays; otherwise the inputs are returned unchanged as `Err((self, other))`.
+    ///
     /// # Errors
     ///
-    /// TODO
+    /// Returns `Err((self, other))` if `check` is `true` and the `representing_vars` differ.
     pub fn combine(mut self, other: Self, check: bool) -> Result<Self, (Self, Self)>
     where
         U: Eq,
@@ -209,9 +227,16 @@ impl<const N: usize, U: CoordinateRingRepr> CoordinateRingPresentation<N, U> {
         })
     }
 
+    /// Form the product of two coordinate ring presentations.
+    ///
+    /// Embeds `self` into a ring with `N + MORE` variables (appending `other`'s variables after
+    /// `self`'s) and `other` symmetrically (prepending `self`'s variables), then merges the
+    /// generator lists. The const generics must satisfy `N + MORE == N_PLUS_MORE`.
+    ///
     /// # Errors
     ///
-    /// TODO
+    /// Returns `Err((self, other))` if the two `representing_vars` arrays share any element
+    /// (the variable sets must be disjoint for the product to be well-defined).
     #[allow(clippy::missing_panics_doc)]
     pub fn product<const MORE: usize, const N_PLUS_MORE: usize>(
         self,
@@ -238,6 +263,11 @@ impl<const N: usize, U: CoordinateRingRepr> CoordinateRingPresentation<N, U> {
         )
     }
 
+    /// Reduce each monomial in `linear_combination` modulo the binomial generators.
+    ///
+    /// For each monomial, repeatedly applies the substitution `p⁺ ↦ p⁻` (replacing the larger
+    /// monomial of each generator with the smaller) until no further reduction is possible.
+    /// Coefficients are left unchanged.
     pub fn reduce_function_helper<Scalar>(
         &self,
         mut linear_combination: Vec<(Scalar, Monomial<N>)>,
@@ -266,6 +296,10 @@ impl<const N: usize, U: CoordinateRingRepr> CoordinateRingPresentation<N, U> {
         linear_combination
     }
 
+    /// Reduce a linear combination of monomials modulo the ideal and convert to the `U` representation.
+    ///
+    /// Calls [`reduce_function_helper`](Self::reduce_function_helper) and then maps each reduced
+    /// monomial to its value in `U` via `raise_power` and `multiply`.
     #[allow(clippy::missing_panics_doc)]
     pub fn reduce_function<Scalar>(
         &self,
@@ -315,9 +349,18 @@ where
 }
 
 impl ToricFan {
+    /// Compute the toric coordinate ring presentation `k[x₁,…,xₙ]/I_σ` for an affine fan.
+    ///
+    /// For a single-cone fan, delegates directly to the cone's
+    /// [`coordinate_ring_presentation`](RationalPolyhedralCone::coordinate_ring_presentation).
+    /// For a multi-cone fan the fan must be affine; the global support cone is used.
+    ///
     /// # Errors
     ///
-    /// TODO
+    /// Returns `Err(CoordinateRingError::NotAffine)` if there is more than one cone and the fan
+    /// is not affine, `Err(CoordinateRingError::NotManifestlyAffine)` if the global support cone
+    /// cannot be constructed, or any error propagated from the single-cone computation (e.g.
+    /// `NonSimplicialCone` or `DimensionMismatch` if `N` is wrong).
     #[allow(clippy::missing_panics_doc)]
     pub fn compute_coordinate_ring_presentation<const N: usize>(
         &self,
@@ -452,7 +495,8 @@ impl RationalPolyhedralCone {
     }
 }
 
-pub(crate) fn main_toric_ideal_example() {
+#[allow(clippy::missing_panics_doc)]
+pub fn main_toric_ideal_example() {
     // Example usage
     let cone = RationalPolyhedralCone::c2();
 

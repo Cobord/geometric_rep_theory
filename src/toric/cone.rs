@@ -192,6 +192,9 @@ impl RationalPolyhedralCone {
         self
     }
 
+    /// Return the cached spanning dimension (rank of the generator matrix), or `None` if it has
+    /// not yet been computed. Call [`with_spanning_dim`](Self::with_spanning_dim) first to
+    /// populate it.
     pub fn view_spanning_dim(&self) -> Option<usize> {
         self.spanning_dim.get().copied()
     }
@@ -375,11 +378,13 @@ impl RationalPolyhedralCone {
     /// This is the fan axiom: a collection of cones forms a fan iff every pairwise intersection
     /// is a face of each cone.
     ///
-    /// **Not yet implemented** — currently panics with `todo!`.
-    ///
     /// # Errors
     ///
-    /// TODO
+    /// If the cones are not minimally presented or have different ambient dimensions.
+    ///
+    /// # Panics
+    ///
+    /// Not yet implemented — always panics with `todo!`.
     pub fn intersection_is_face_of_both(
         &self,
         _other: &RationalPolyhedralCone,

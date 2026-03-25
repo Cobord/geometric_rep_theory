@@ -51,7 +51,9 @@ impl<const N: usize> ConvexPolytope<N> {
     ///
     /// # Errors
     ///
-    /// TODO
+    /// Returns `Err(PolytopeError::EmptyVertexList)` if `vertices` is empty, or
+    /// `Err(PolytopeError::ConvexHullError(...))` if qhull fails (e.g. the points do not
+    /// affinely span ℝᴺ).
     pub fn new(vertices: Vec<[i64; N]>) -> Result<Self, PolytopeError> {
         if vertices.is_empty() {
             return Err(PolytopeError::EmptyVertexList);
@@ -449,7 +451,8 @@ impl<const N: usize> ConvexPolytope<N> {
     ///
     /// # Errors
     ///
-    /// TODO
+    /// Returns `Err` if any per-vertex cone construction fails, for example if a vertex has no
+    /// incident good facets (yielding an empty generator list for that cone).
     pub fn toric_fan(self) -> Result<ToricFan, ToricFanError> {
         let mut to_return = ToricFan::new(N);
         for vertex in self.qh.all_vertices() {
@@ -479,6 +482,11 @@ impl<const N: usize> ConvexPolytope<N> {
         Ok(to_return)
     }
 
+    /// Enumerate all lattice points strictly in the interior of the polytope.
+    ///
+    /// Iterates over all integer points in the bounding box of the qhull vertices and retains
+    /// those that lie strictly on the interior side of every facet (dot product with outward
+    /// normal strictly negative).
     pub fn interior_lattice_points(&self) -> Vec<[i64; N]> {
         let qh_dim = N - self.extra_zero_coords;
 

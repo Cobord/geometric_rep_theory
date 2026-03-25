@@ -138,6 +138,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
 
 [[package]]
+name = "geometric_rep_theory"
+version = "0.1.0"
+dependencies = [
+ "itertools 0.14.0",
+ "nalgebra",
+ "nonempty",
+ "petgraph",
+ "qhull",
+]
+
+[[package]]
 name = "glob"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -409,17 +420,6 @@ checksum = "4696d373a738018e5e0c72a63d3a676ba660d2503df3ada3e8cef84ca7f9a51e"
 dependencies = [
  "bindgen",
  "cc",
-]
-
-[[package]]
-name = "quivers"
-version = "0.1.0"
-dependencies = [
- "itertools 0.14.0",
- "nalgebra",
- "nonempty",
- "petgraph",
- "qhull",
 ]
 
 [[package]]

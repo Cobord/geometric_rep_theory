@@ -24,6 +24,10 @@ where
     VertexLabel: std::hash::Hash + Eq + Clone,
     EdgeLabel: std::hash::Hash + Eq + Clone,
 {
+    /// Construct a quiver with monomial relations from a generating set for the forbidden-path ideal.
+    ///
+    /// Redundant generators (those whose corresponding path contains another generator as a
+    /// subword) are removed so that the stored relations form an antichain.
     pub fn new(
         quiver: Arc<Quiver<VertexLabel, EdgeLabel>>,
         ideal_generators: impl IntoIterator<Item = Vec<EdgeLabel>>,
@@ -37,18 +41,22 @@ where
         &self.quiver
     }
 
+    /// Iterate over the vertex labels of the underlying quiver.
     pub fn vertices(&self) -> impl Iterator<Item = VertexLabel> {
         self.quiver.vertex_labels().cloned()
     }
 
+    /// Iterate over the arrow labels of the underlying quiver.
     pub fn edge_labels(&self) -> impl Iterator<Item = EdgeLabel> {
         self.quiver.edge_labels().cloned()
     }
 
+    /// Iterate over the minimal monomial generators of the forbidden-path ideal.
     pub fn relations(&self) -> impl Iterator<Item = &Vec<EdgeLabel>> {
         self.relations.iter()
     }
 
+    /// Return the source and target vertices of a basis element, or `None` if it is not valid.
     pub fn basis_endpoints(
         &self,
         b: &BasisElt<VertexLabel, EdgeLabel>,
@@ -103,6 +111,8 @@ where
             .any(|relation| crate::utils::contains_subword_v2(word, relation))
     }
 
+    /// Return `Some(candidate)` if the basis element is nonzero in the quotient, `None` if it
+    /// is killed by the monomial ideal. Idempotents are always retained.
     pub fn retain_if_nonzero(
         &self,
         candidate: BasisElt<VertexLabel, EdgeLabel>,
@@ -119,6 +129,9 @@ where
         }
     }
 
+    /// Multiply two basis elements in kQ^{op}/I^{op} and return the result, or `None` if the
+    /// product is zero (either because the paths are non-composable or because the result is in
+    /// the ideal).
     pub fn multiply_basis_elts(
         &self,
         left: &BasisElt<VertexLabel, EdgeLabel>,
@@ -134,12 +147,18 @@ where
         }
     }
 
+    /// Check whether the algebra kQ^{op}/I^{op} is a gentle algebra.
     ///
+    /// A monomial quiver algebra is gentle if:
+    /// - every vertex has at most 2 incoming and at most 2 outgoing arrows,
+    /// - every relation has length exactly 2,
+    /// - for each arrow α, at most one length-2 relation starts with α, and
+    /// - for each arrow α, at most one length-2 relation ends with α, and
+    /// - for each arrow α, at most one composable arrow β (with β not killed by a relation) follows α.
     ///
     /// # Errors
     ///
-    /// If the algebra kQ^op/I^op is not gentle
-    /// give the reason why.
+    /// Returns `Err(reason)` with a human-readable explanation of the first violated condition.
     pub fn is_gentle(&self) -> Result<(), String>
     where
         VertexLabel: Debug,

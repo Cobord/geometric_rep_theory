@@ -1,7 +1,9 @@
 [package]
-name = "quivers"
+name = "geometric_rep_theory"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
+
 
 [dependencies]
 nonempty = "0.12.0"

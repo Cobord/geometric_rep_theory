@@ -23,11 +23,16 @@ where
     EdgeLabel: Eq + std::hash::Hash + Clone,
     Coeffs: Ring,
 {
+    /// Construct a quiver with relations, optionally simplifying and stripping zero relations.
     ///
+    /// If `is_zero` is provided, each relation is simplified (zero coefficients removed) before
+    /// being stored. Relations that are provably zero after simplification are discarded.
     ///
     /// # Panics
     ///
-    /// All the relations must be in the path algebra of this particular quiver
+    /// Panics if any relation does not belong to the path algebra of `quiver` (checked via
+    /// pointer equality on the underlying `Arc`), or if a relation has summands with
+    /// inconsistent endpoints.
     pub fn new(
         quiver: Arc<Quiver<VertexLabel, EdgeLabel>>,
         mut relations: Vec<PathAlgebra<VertexLabel, EdgeLabel, Coeffs>>,
@@ -47,10 +52,15 @@ where
         Self { quiver, relations }
     }
 
+    /// Construct the free path algebra kQ^{op} viewed as a quiver with an empty ideal.
     pub fn from_quiver_no_relations(quiver: Arc<Quiver<VertexLabel, EdgeLabel>>) -> Self {
         Self::new(quiver, vec![], None)
     }
 
+    /// Construct the Jacobian algebra from a superpotential `W`.
+    ///
+    /// The relations are the cyclic partial derivatives ∂W/∂α for each arrow α in the quiver.
+    /// This gives the Jacobian (or Ginzburg) algebra kQ^{op}/⟨∂W/∂α⟩.
     pub fn from_quiver_and_w(
         quiver: Arc<Quiver<VertexLabel, EdgeLabel>>,
         w_function: &PathAlgebra<VertexLabel, EdgeLabel, Coeffs>,
@@ -70,10 +80,15 @@ where
         &self.quiver
     }
 
+    /// Iterate over the stored relations (non-zero elements of kQ^{op} declared to be zero).
     pub fn relations(&self) -> impl Iterator<Item = &PathAlgebra<VertexLabel, EdgeLabel, Coeffs>> {
         self.relations.iter()
     }
 
+    /// Check whether a quiver representation descends to a representation of the quotient algebra.
+    ///
+    /// Returns `true` iff every relation acts as the zero map on the representation, i.e.
+    /// `mat_from_path_algebra(rel)` is zero (as determined by `matrix_is_zero`) for every relation.
     pub fn rep_descends<MatrixType>(
         &self,
         quiver_rep: &QuiverRep<VertexLabel, EdgeLabel, MatrixType>,

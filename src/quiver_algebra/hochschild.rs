@@ -68,6 +68,10 @@ where
     EdgeLabel: std::hash::Hash + Eq + Clone,
     Scalar: Field,
 {
+    /// Create the structure for computing Hochschild cohomology of a monomial algebra.
+    ///
+    /// `chain_search_max_wordlen` bounds the word length used when searching for Bardzell chains;
+    /// it should be at least as long as the longest non-zero path in the algebra.
     pub fn new(
         quiver_with_mon_relations: Arc<QuiverWithMonomialRelations<VertexLabel, EdgeLabel>>,
         chain_search_max_wordlen: usize,
@@ -113,20 +117,25 @@ where
         Ok(Self::new(quiver_with_mon_rels, chain_search_max_wordlen))
     }
 
-    #[must_use = "TODO"]
+    #[must_use = "The basis is returned by reference; ignoring it means the build step ran for nothing"]
     pub fn view_basis(&self) -> &[BasisElt<VertexLabel, EdgeLabel>] {
         &self.basis
     }
 
+    /// Return the Bardzell chains in cohomological degree `degree`, or `None` if chains have not
+    /// been built yet for that degree.
     pub fn chains_in_degree(&self, degree: usize) -> Option<&[Chain<EdgeLabel>]> {
         self.ap.get(&degree).map(Vec::as_slice)
     }
 
+    /// Enumerate all admissible paths (basis elements of A = kQ^{op}/I^{op}) up to `max_paths`.
     ///
+    /// Idempotents are included automatically. The result is cached; subsequent calls are no-ops.
     ///
     /// # Errors
     ///
-    /// There could be too many admissible paths beyond the limit set by `max_paths`
+    /// Returns `Err(HochschildError::BasisEnumerationExceeded)` if the number of admissible paths
+    /// exceeds `max_paths`.
     pub fn build_basis(&mut self, max_paths: usize) -> Result<(), HochschildError> {
         if self.basis_built {
             return Ok(());
@@ -313,7 +322,7 @@ where
             .and_then(|chains| chains.iter().position(|chain| chain == candidate))
     }
 
-    #[must_use = "TODO"]
+    #[must_use = "The subchain decomposition is the main output; discarding it means this traversal ran for nothing"]
     pub fn subchains(
         &self,
         chain: &Chain<EdgeLabel>,
@@ -459,15 +468,19 @@ where
         basis
     }
 
+    /// Return the dimension of the Hochschild cochain space in degree `degree`.
     pub fn cochain_dim(&mut self, degree: usize) -> usize {
         self.cochain_basis(degree).len()
     }
 
+    /// Compute the matrix of the Hochschild differential d: C^{degree} → C^{degree+1}.
     ///
+    /// The result is cached; subsequent calls for the same degree are free. Internally calls
+    /// `build_basis` with a cap of 100,000 paths if the basis has not been built yet.
     ///
     /// # Panics
     ///
-    /// The problem of `build_basis`
+    /// Panics if `build_basis` fails because the number of admissible paths exceeds 100,000.
     #[allow(clippy::too_many_lines)]
     pub fn differential_matrix(&mut self, degree: CohomologicalDegree) -> Vec<Vec<Scalar>> {
         if let Some(answer) = self.differential_cache.get(&degree) {
@@ -605,13 +618,15 @@ where
             .max()
     }
 
+    /// Compute the Hochschild cohomology dimensions HH^d(A) for d = 0, …, `max_degree`.
     ///
+    /// Builds the basis (up to `max_paths` admissible paths), constructs the Bardzell chains,
+    /// and computes rank(d^d) for each degree to get dim HH^d = ker(d^d) - im(d^{d-1}).
     ///
     /// # Errors
     ///
-    /// There could be too many admissible paths as in the error of `build_basis`.
-    /// The other problem of seeing a kernel that is smaller than the image
-    /// is a problem of d^2 not being 0, which indicates the differential was wrong.
+    /// Returns an error if `build_basis` exceeds `max_paths`, or if a cohomology dimension
+    /// comes out negative (which would indicate a bug in the differential).
     pub fn hochschild_dimensions(
         &mut self,
         max_degree: CohomologicalDegree,

@@ -145,7 +145,7 @@ impl ToricFan {
     }
 }
 
-pub(crate) fn main_examples() {
+pub fn main_examples() {
     for (fan_name, fan) in ToricFan::common_cases() {
         println!(
             "Example Fan {fan_name}: {:?}",

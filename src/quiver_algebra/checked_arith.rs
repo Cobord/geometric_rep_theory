@@ -3,6 +3,8 @@ use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 pub trait CheckedMul {
     type MultiplicationError;
 
+    fn will_error(&self, rhs: &Self) -> bool;
+
     /// Multiply but there is a possibility for not being able to be multiplied
     /// like matrix dimensions mismatching
     ///
@@ -19,6 +21,10 @@ where
 {
     type MultiplicationError = ();
 
+    fn will_error(&self, _rhs: &Self) -> bool {
+        false
+    }
+
     fn checked_mul(self, rhs: Self) -> Result<Self, Self::MultiplicationError>
     where
         Self: Sized,
@@ -29,6 +35,8 @@ where
 
 pub trait CheckedMulAssign {
     type MultiplicationError;
+
+    fn will_error(&self, rhs: &Self) -> bool;
 
     /// Multiply but there is a possibility for not being able to be multiplied
     /// like matrix dimensions mismatching
@@ -44,6 +52,10 @@ where
 {
     type MultiplicationError = ();
 
+    fn will_error(&self, _rhs: &Self) -> bool {
+        false
+    }
+
     fn checked_mul_assign(&mut self, rhs: Self) -> Result<(), Self::MultiplicationError>
     where
         Self: Sized,
@@ -55,6 +67,8 @@ where
 
 pub trait CheckedAdd {
     type AdditionError;
+
+    fn will_error(&self, rhs: &Self) -> bool;
 
     /// Add but there is a possibility for not being able to be added
     /// like matrix dimensions mismatching
@@ -72,6 +86,10 @@ where
 {
     type AdditionError = ();
 
+    fn will_error(&self, _rhs: &Self) -> bool {
+        false
+    }
+
     fn checked_add(self, rhs: Self) -> Result<Self, Self::AdditionError>
     where
         Self: Sized,
@@ -82,6 +100,8 @@ where
 
 pub trait CheckedAddAssign {
     type AdditionError;
+
+    fn will_error(&self, rhs: &Self) -> bool;
 
     /// Add but there is a possibility for not being able to be added
     /// like matrix dimensions mismatching
@@ -96,6 +116,10 @@ where
     T: AddAssign<T>,
 {
     type AdditionError = ();
+
+    fn will_error(&self, _rhs: &Self) -> bool {
+        false
+    }
 
     fn checked_add_assign(&mut self, rhs: Self) -> Result<(), Self::AdditionError>
     where
@@ -170,7 +194,7 @@ impl<T> Ring for T where
 pub trait Field: Ring + PartialEq {
     fn zero() -> Self;
     fn one() -> Self;
-    #[must_use = "TODO"]
+    #[must_use = "division is hard, don't waste it"]
     fn inv(self) -> Self;
 
     fn is_zero(&self) -> bool {
