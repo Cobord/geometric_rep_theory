@@ -9,12 +9,13 @@ use crate::toric::{cone::RationalPolyhedralCone, cone_errors::ToricFanError, fan
 /// Errors for polytope operations
 #[derive(Debug)]
 pub enum PolytopeError {
+    /// No vertices were supplied.
     EmptyVertexList,
-    DimensionMismatch {
-        expected: usize,
-        found: usize,
-    },
+    /// The supplied matrix or vector has the wrong shape.
+    DimensionMismatch { expected: usize, found: usize },
+    /// One of the supplied vertices is the zero vector.
     ZeroVertex,
+    /// qhull failed to compute the convex hull (e.g. the points are not full-dimensional).
     ConvexHullError(QhError<'static>),
     /// The polar dual requires the origin to be in the interior of the polytope.
     OriginNotContained,

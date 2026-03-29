@@ -6,16 +6,24 @@ use crate::toric::cone::RationalPolyhedralCone;
 use crate::toric::fan::ToricFan;
 use crate::toric::integer_arith::{gcd, kernel_from_snf};
 
+/// Errors returned by toric coordinate ring computations.
 #[derive(PartialEq, Eq, Debug)]
 pub enum CoordinateRingError {
+    /// The fan has more than one cone and is not affine.
     NotAffine,
+    /// The fan is affine but the global support cone could not be constructed.
     NotManifestlyAffine,
+    /// The cone is not simplicial (has more rays than its dimension).
     NonSimplicialCone,
+    /// The number of rays does not match the const generic `N`.
     DimensionMismatch { expected: usize, actual: usize },
+    /// An internal linear algebra step (SNF computation or kernel extraction) failed.
     LinearAlgebraFailure,
+    /// The cone may not be minimally presented, so the ray count is unreliable.
     PossiblyNonMinimalCone,
 }
 
+/// A monomial in `N` variables, stored as an array of non-negative integer exponents.
 #[derive(Clone, PartialEq, Eq)]
 pub struct Monomial<const N: usize> {
     pub exponents: [u32; N],
@@ -48,6 +56,7 @@ impl<const N: usize> Display for Monomial<N> {
     }
 }
 
+/// A binomial relation `positive - negative` in the toric ideal.
 #[derive(Clone, PartialEq, Eq)]
 pub struct Binomial<const N: usize> {
     pub positive: Monomial<N>,
@@ -81,17 +90,24 @@ impl<const N: usize> Binomial<N> {
     }
 }
 
+/// A representation of elements in the coordinate ring, used to evaluate monomials.
+///
+/// Implementors decide how to represent a ring element concretely (e.g. as an exponent vector).
 pub trait CoordinateRingRepr: Clone + Eq {
+    /// Return `self` raised to `power`.
     #[must_use = "This gives the raised power representation consuming self"]
     fn raise_power(&self, power: u32) -> Self;
+    /// Return the product of `self` and `other`.
     #[must_use = "This gives the multiplied representation consuming self and other"]
     fn multiply(self, other: Self) -> Self;
 }
 
+/// The default coordinate ring representation: an integer exponent vector (column of the ray matrix).
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct DefaultRepr(DVector<i64>);
 
 impl DefaultRepr {
+    /// Construct a `DefaultRepr` from a raw integer vector.
     #[must_use = "Did you mean to use the created DefaultRepr?"]
     pub fn from_vec(v: Vec<i64>) -> Self {
         DefaultRepr(DVector::from_vec(v))
@@ -108,6 +124,10 @@ impl CoordinateRingRepr for DefaultRepr {
     }
 }
 
+/// A presentation of an affine toric coordinate ring `k[x₁,…,xₙ]/I` by binomial generators.
+///
+/// `generators` is the list of binomial relations `p⁺ - p⁻ = 0`, and `representing_vars` gives
+/// a concrete value in `Repr` for each of the `N` coordinate ring generators.
 #[derive(Clone)]
 pub struct CoordinateRingPresentation<const N: usize, Repr: CoordinateRingRepr> {
     pub generators: Vec<Binomial<N>>,
@@ -115,6 +135,7 @@ pub struct CoordinateRingPresentation<const N: usize, Repr: CoordinateRingRepr> 
 }
 
 impl<const N: usize, U: CoordinateRingRepr> CoordinateRingPresentation<N, U> {
+    /// Convert the representation type by applying `converter` to each of the `N` representing vars.
     pub fn conversion<T>(self, converter: fn(U) -> T) -> CoordinateRingPresentation<N, T>
     where
         T: CoordinateRingRepr,

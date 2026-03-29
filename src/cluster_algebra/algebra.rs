@@ -2,6 +2,12 @@ use std::collections::{HashMap, HashSet};
 
 use crate::quiver_algebra::{Quiver, SemiRing};
 
+/// A cluster algebra of rank `N` with exchange graph encoded as a quiver.
+///
+/// The seed stores each cluster variable as a fraction `(numerator, denominator)` built from the
+/// initial seed by iterated mutation.  Mutations are performed in-place and update both the quiver
+/// and the seed via the exchange relation.  Vertices may be frozen to prevent mutation while still
+/// participating in exchange relations.
 pub struct ClusterAlgebra<const N: usize, VertexLabel, EdgeLabel, Coeffs>
 where
     VertexLabel: std::hash::Hash + Eq + Clone,
@@ -141,6 +147,7 @@ where
         self.frozen.remove(vertex);
     }
 
+    /// Returns `true` if `vertex` is frozen.
     pub fn is_frozen(&self, vertex: &VertexLabel) -> bool {
         self.frozen.contains(vertex)
     }
@@ -276,6 +283,7 @@ where
         })
     }
 
+    /// The underlying exchange quiver.
     pub fn quiver(&self) -> &Quiver<VertexLabel, EdgeLabel> {
         &self.quiver
     }

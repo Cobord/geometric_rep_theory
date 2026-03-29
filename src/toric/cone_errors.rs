@@ -5,20 +5,27 @@ use crate::toric::cone::RationalPolyhedralCone;
 /// Errors for cone operations
 #[derive(Debug, PartialEq, Eq)]
 pub enum ConeError {
+    /// The supplied generator vectors do not all have the same length.
     DimensionMismatch { expected: usize, found: usize },
+    /// No generator vectors were supplied.
     EmptyGeneratorList,
+    /// One of the generator vectors is the zero vector.
     ZeroGenerator,
+    /// The cone is not minimally presented (some generator is a non-negative combination of others).
     NotMinimallyPresented,
 }
 
 /// Toric fan errors
 #[derive(Debug)]
 pub enum ToricFanError {
+    /// Propagated error from cone construction.
     ConeError(ConeError),
+    /// Two cones in the fan intersect in a set that is not a face of either cone.
     IntersectionNotFace {
         cone1: Box<RationalPolyhedralCone>,
         cone2: Box<RationalPolyhedralCone>,
     },
+    /// The fan is not affine (has more than one maximal cone), so there is no single global support cone.
     GlobalConeOnlyForAffine,
 }
 

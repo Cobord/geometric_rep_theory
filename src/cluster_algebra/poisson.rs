@@ -111,18 +111,22 @@ where
         self.lambda[j][i] = -value;
     }
 
+    /// Mark `vertex` as frozen; delegates to the inner [`ClusterAlgebra`].
     pub fn freeze(&mut self, vertex: VertexLabel) {
         self.algebra.freeze(vertex);
     }
 
+    /// Unfreeze `vertex`; delegates to the inner [`ClusterAlgebra`].
     pub fn unfreeze(&mut self, vertex: &VertexLabel) {
         self.algebra.unfreeze(vertex);
     }
 
+    /// Returns `true` if `vertex` is frozen; delegates to the inner [`ClusterAlgebra`].
     pub fn is_frozen(&self, vertex: &VertexLabel) -> bool {
         self.algebra.is_frozen(vertex)
     }
 
+    /// Read off cluster variable values; delegates to the inner [`ClusterAlgebra`].
     pub fn view_cluster<const M: usize>(&self, vertex: [VertexLabel; M]) -> [(Coeffs, Coeffs); M] {
         self.algebra.view_cluster(vertex)
     }

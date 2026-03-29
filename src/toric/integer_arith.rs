@@ -1,6 +1,6 @@
 use nalgebra::{DMatrix, DVector};
 
-pub fn gcd(mut a: i64, mut b: i64) -> i64 {
+pub(crate) fn gcd(mut a: i64, mut b: i64) -> i64 {
     while b != 0 {
         let r = a % b;
         a = b;
