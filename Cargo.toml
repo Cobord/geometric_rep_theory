@@ -6,6 +6,9 @@ license = "MIT"
 description = "Algebraic and geometric structures arising in mathematical physics and mirror symmetry."
 repository = "https://github.com/Cobord/geometric_rep_theory"
 documentation = "https://docs.rs/geometric_rep_theory"
+readme = "README.md"
+keywords = ["quiver", "cluster-algebra", "toric", "homological-algebra", "representation"]
+categories = ["mathematics", "science", "algorithms"]
 
 [dependencies]
 nonempty = "0.12.0"
