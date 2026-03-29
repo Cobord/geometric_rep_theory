@@ -98,14 +98,14 @@ impl<V: Clone, Coeffs: Field> PeirceElement<V, Coeffs> {
 /// The generic parameter `BasisLabel` is the type used to label individual
 /// basis elements of each Peirce piece (e.g., admissible paths for the
 /// diagonal bimodule).
-pub trait QuiverBimodule<V, E, Coeffs, BasisLabel>
+pub trait QuiverBimodule<V, E, Coeffs, BasisLabel, const OP_ALG: bool>
 where
     V: std::hash::Hash + Eq + Clone,
     E: Eq + std::hash::Hash + Clone,
     Coeffs: Ring,
 {
     /// The algebra A = kQ^{op}/I^{op} over which this is a bimodule.
-    fn algebra(&self) -> &Arc<QuiverWithRelations<V, E, Coeffs>>;
+    fn algebra(&self) -> &Arc<QuiverWithRelations<V, E, Coeffs, OP_ALG>>;
 
     /// The ordered basis of the internal Peirce piece `(v, w)`
     /// If using `kQ` instead of `kQ^{op}` this would be `e_w N e_v`
@@ -420,13 +420,13 @@ pub enum DiagonalBimoduleError {
 /// Basis labels are `Vec<E>` (the edge-label sequence of the path in Q; empty = idempotent).
 /// [`peirce_basis`](QuiverBimodule::peirce_basis) returns these sequences in the order
 /// they were enumerated (BFS).
-pub struct DiagonalBimodule<V, E, Coeffs>
+pub struct DiagonalBimodule<V, E, Coeffs, const OP_ALG: bool>
 where
     V: std::hash::Hash + Eq + Clone,
     E: Eq + std::hash::Hash + Clone,
     Coeffs: Ring,
 {
-    algebra: Arc<QuiverWithRelations<V, E, Coeffs>>,
+    algebra: Arc<QuiverWithRelations<V, E, Coeffs, OP_ALG>>,
     /// Ordered basis of each Peirce piece: `basis_by_pair[(v, w)] = [path₀, path₁, …]`.
     basis_by_pair: HashMap<(V, V), Vec<Vec<E>>>,
     /// Left action matrices: `left_matrices[(α, w)]` is `L_{α,w}`,
@@ -439,7 +439,7 @@ where
     right_matrices: HashMap<(E, V), DMatrix<bool>>,
 }
 
-impl<V, E, Coeffs> DiagonalBimodule<V, E, Coeffs>
+impl<V, E, Coeffs, const OP_ALG: bool> DiagonalBimodule<V, E, Coeffs, OP_ALG>
 where
     V: std::hash::Hash + Eq + Clone + Debug,
     E: std::hash::Hash + Eq + Clone + Debug,
@@ -456,7 +456,7 @@ where
     /// - [`DiagonalBimoduleError::TooManyPaths`] if enumeration exceeds
     ///   `max_paths`.
     pub fn try_new(
-        algebra: Arc<QuiverWithRelations<V, E, Coeffs>>,
+        algebra: Arc<QuiverWithRelations<V, E, Coeffs, OP_ALG>>,
         max_paths: usize,
     ) -> Result<Self, DiagonalBimoduleError> {
         let mon: QuiverWithMonomialRelations<V, E> = (&*algebra)
@@ -475,13 +475,14 @@ where
     }
 }
 
-impl<V, E, Coeffs> QuiverBimodule<V, E, Coeffs, Vec<E>> for DiagonalBimodule<V, E, Coeffs>
+impl<V, E, Coeffs, const OP_ALG: bool> QuiverBimodule<V, E, Coeffs, Vec<E>, OP_ALG>
+    for DiagonalBimodule<V, E, Coeffs, OP_ALG>
 where
     V: std::hash::Hash + Eq + Clone,
     E: std::hash::Hash + Eq + Clone,
     Coeffs: Field,
 {
-    fn algebra(&self) -> &Arc<QuiverWithRelations<V, E, Coeffs>> {
+    fn algebra(&self) -> &Arc<QuiverWithRelations<V, E, Coeffs, OP_ALG>> {
         &self.algebra
     }
 
@@ -687,11 +688,10 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
-    use crate::quiver_algebra::quiver::{
-        BasisElt, PathAlgebra, Quiver, tests::make_kronecker_quiver,
-    };
+    use crate::quiver_algebra::path_algebra::PathAlgebra;
+    use crate::quiver_algebra::quiver::{BasisElt, Quiver, tests::make_kronecker_quiver};
 
-    fn make_a3_with_rel() -> Arc<QuiverWithRelations<&'static str, &'static str, f64>> {
+    fn make_a3_with_rel() -> Arc<QuiverWithRelations<&'static str, &'static str, f64, true>> {
         // 0 --"a"--> 1 --"b"--> 2,  relation ab = 0
         let mut q = Quiver::new();
         q.add_edge("0", "1", "a");
@@ -714,9 +714,8 @@ mod tests {
     #[test]
     fn a2_peirce_basis_dimensions() {
         let q = crate::quiver_algebra::quiver::tests::make_a2_quiver();
-        let qwr = Arc::new(QuiverWithRelations::<_, _, f64>::from_quiver_no_relations(
-            Arc::new(q),
-        ));
+        let qwr =
+            Arc::new(QuiverWithRelations::<_, _, f64, true>::from_quiver_no_relations(Arc::new(q)));
         let bim = DiagonalBimodule::try_new(qwr, 100).unwrap();
 
         // e_alpha kQ^op e_alpha = {e_alpha}  (dim 1)
@@ -732,9 +731,8 @@ mod tests {
     #[test]
     fn a2_peirce_basis_labels() {
         let q = crate::quiver_algebra::quiver::tests::make_a2_quiver();
-        let qwr = Arc::new(QuiverWithRelations::<_, _, f64>::from_quiver_no_relations(
-            Arc::new(q),
-        ));
+        let qwr =
+            Arc::new(QuiverWithRelations::<_, _, f64, true>::from_quiver_no_relations(Arc::new(q)));
         let bim = DiagonalBimodule::try_new(qwr, 100).unwrap();
 
         // e_alpha kQ^op e_alpha basis = [[] (idempotent)]
@@ -748,9 +746,8 @@ mod tests {
     #[test]
     fn a2_left_act_on_basis_element() {
         let q = crate::quiver_algebra::quiver::tests::make_a2_quiver();
-        let qwr = Arc::new(QuiverWithRelations::<_, _, f64>::from_quiver_no_relations(
-            Arc::new(q),
-        ));
+        let qwr =
+            Arc::new(QuiverWithRelations::<_, _, f64, true>::from_quiver_no_relations(Arc::new(q)));
         let bim = DiagonalBimodule::try_new(qwr, 100).unwrap();
 
         // e_beta is the unique basis element of e_beta kQ^op e_beta.
@@ -765,9 +762,8 @@ mod tests {
     #[test]
     fn a2_right_act_on_basis_element() {
         let q = crate::quiver_algebra::quiver::tests::make_a2_quiver();
-        let qwr = Arc::new(QuiverWithRelations::<_, _, f64>::from_quiver_no_relations(
-            Arc::new(q),
-        ));
+        let qwr =
+            Arc::new(QuiverWithRelations::<_, _, f64, true>::from_quiver_no_relations(Arc::new(q)));
         let bim = DiagonalBimodule::try_new(qwr, 100).unwrap();
 
         // e_alpha is the unique basis element of e_alpha kQ^op e_alpha.
@@ -784,9 +780,8 @@ mod tests {
         // L_a expects elt.left == t(a) = "beta".
         // Passing elt.left == "alpha" should return zero.
         let q = crate::quiver_algebra::quiver::tests::make_a2_quiver();
-        let qwr = Arc::new(QuiverWithRelations::<_, _, f64>::from_quiver_no_relations(
-            Arc::new(q),
-        ));
+        let qwr =
+            Arc::new(QuiverWithRelations::<_, _, f64, true>::from_quiver_no_relations(Arc::new(q)));
         let bim = DiagonalBimodule::try_new(qwr, 100).unwrap();
         let wrong = PeirceElement::basis_vec("alpha", "beta", 1, 0);
         let result = bim.left_act(&"a", &wrong);
@@ -798,9 +793,8 @@ mod tests {
     #[test]
     fn a2_diagonal_satisfies_axioms() {
         let q = crate::quiver_algebra::quiver::tests::make_a2_quiver();
-        let qwr = Arc::new(QuiverWithRelations::<_, _, f64>::from_quiver_no_relations(
-            Arc::new(q),
-        ));
+        let qwr =
+            Arc::new(QuiverWithRelations::<_, _, f64, true>::from_quiver_no_relations(Arc::new(q)));
         let bim = DiagonalBimodule::try_new(qwr, 100).unwrap();
         let v = bim.check_bimodule_axioms();
         assert!(v.is_empty(), "{v:?}");
@@ -808,9 +802,11 @@ mod tests {
 
     #[test]
     fn kronecker_diagonal_satisfies_axioms() {
-        let qwr = Arc::new(QuiverWithRelations::<_, _, f64>::from_quiver_no_relations(
-            Arc::new(make_kronecker_quiver()),
-        ));
+        let qwr = Arc::new(
+            QuiverWithRelations::<_, _, f64, true>::from_quiver_no_relations(Arc::new(
+                make_kronecker_quiver(),
+            )),
+        );
         let bim = DiagonalBimodule::try_new(qwr, 100).unwrap();
         let v = bim.check_bimodule_axioms();
         assert!(v.is_empty(), "{v:?}");
@@ -836,9 +832,11 @@ mod tests {
 
     #[test]
     fn kronecker_peirce_piece_dimensions() {
-        let qwr = Arc::new(QuiverWithRelations::<_, _, f64>::from_quiver_no_relations(
-            Arc::new(make_kronecker_quiver()),
-        ));
+        let qwr = Arc::new(
+            QuiverWithRelations::<_, _, f64, true>::from_quiver_no_relations(Arc::new(
+                make_kronecker_quiver(),
+            )),
+        );
         let bim = DiagonalBimodule::try_new(qwr, 100).unwrap();
         assert_eq!(bim.peirce_dim(&"alpha", &"beta"), 2);
         assert_eq!(bim.peirce_dim(&"alpha", &"alpha"), 1);

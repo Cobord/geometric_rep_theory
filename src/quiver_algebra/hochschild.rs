@@ -17,6 +17,8 @@ pub type IndexInList = usize;
 pub type CohomologicalDegree = usize;
 pub type CochainBasis = (CochainAnchor, IndexInList);
 
+const OP_ALG_HH: bool = true;
+
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Chain<EdgeLabel> {
     pub word: Vec<EdgeLabel>,
@@ -29,18 +31,25 @@ pub enum CochainAnchor {
     Chain(IndexInList),
 }
 
+/// Errors that can arise when computing Hochschild cohomology.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HochschildError {
+    /// The ideal contains a non-monomial relation; only monomial ideals are supported.
     NonMonomialIdeal(NonMonomialIdeal),
-    BasisEnumerationExceeded {
-        max_paths: usize,
-    },
+    /// The number of admissible paths exceeded the caller-supplied cap.
+    BasisEnumerationExceeded { max_paths: usize },
+    /// A computed cohomology dimension was negative, indicating a bug in the differential.
     NegativeCohomologyDimension {
         degree: CohomologicalDegree,
         value: isize,
     },
 }
 
+/// Incremental Hochschild cohomology calculator for a monomial quiver algebra A = kQ/I.
+///
+/// Call [`build_basis`](Self::build_basis) and [`build_chains`](Self::build_chains) to prepare
+/// the Bardzell resolution, then [`hochschild_dimensions`](Self::hochschild_dimensions) to read
+/// off dim HH^d(A) for each degree.
 #[must_use]
 pub struct MonomialQuiverAlgebraHH<VertexLabel, EdgeLabel, Scalar>
 where
@@ -104,7 +113,7 @@ where
     ///
     /// The relations must have been all monomials and not the idempotents
     pub fn try_from_quiver_with_relations<RelCoeffs>(
-        algebra: &QuiverWithRelations<VertexLabel, EdgeLabel, RelCoeffs>,
+        algebra: &QuiverWithRelations<VertexLabel, EdgeLabel, RelCoeffs, OP_ALG_HH>,
         chain_search_max_wordlen: usize,
     ) -> Result<Self, HochschildError>
     where
@@ -117,6 +126,8 @@ where
         Ok(Self::new(quiver_with_mon_rels, chain_search_max_wordlen))
     }
 
+    /// Return the algebra basis built by the last call to [`build_basis`](Self::build_basis),
+    /// or an empty slice if the basis has not been built yet.
     #[must_use = "The basis is returned by reference; ignoring it means the build step ran for nothing"]
     pub fn view_basis(&self) -> &[BasisElt<VertexLabel, EdgeLabel>] {
         &self.basis
@@ -216,6 +227,10 @@ where
         Ok(())
     }
 
+    /// Build the Bardzell chains for all degrees. Idempotent: a second call is a no-op.
+    ///
+    /// Must be called before [`subchains`](Self::subchains), [`cochain_basis`](Self::cochain_basis),
+    /// or [`differential_matrix`](Self::differential_matrix).
     pub fn build_chains(&mut self) {
         if self.chains_built {
             return;
@@ -322,6 +337,8 @@ where
             .and_then(|chains| chains.iter().position(|chain| chain == candidate))
     }
 
+    /// Decompose a chain of degree `degree` into `(left_word, subchain, right_word)` triples used
+    /// to build the Hochschild differential. Returns an empty list for degree ≤ 1.
     #[must_use = "The subchain decomposition is the main output; discarding it means this traversal ran for nothing"]
     pub fn subchains(
         &self,
@@ -437,9 +454,14 @@ where
         outs
     }
 
+    /// Return the basis of the Hochschild cochain space C^`degree`.
+    ///
+    /// Calls [`build_basis`](Self::build_basis) (cap 100,000) and
+    /// [`build_chains`](Self::build_chains) if not yet done. Result is cached.
+    ///
     /// # Panics
     ///
-    /// The problem of `build_basis`
+    /// Panics if the admissible-path count exceeds 100,000.
     pub fn cochain_basis(&mut self, degree: usize) -> Vec<CochainBasis> {
         if let Some(cached) = self.cochain_basis_cache.get(&degree) {
             return cached.clone();
@@ -514,10 +536,10 @@ where
                     let arrow_basis = BasisElt::Path(NonEmpty::singleton(ch.word[0].clone()));
                     let left = self
                         .quiver_with_mon_relations
-                        .multiply_basis_elts(&arrow_basis, &out);
+                        .multiply_basis_elts::<OP_ALG_HH>(&arrow_basis, &out);
                     let right = self
                         .quiver_with_mon_relations
-                        .multiply_basis_elts(&out, &arrow_basis);
+                        .multiply_basis_elts::<OP_ALG_HH>(&out, &arrow_basis);
                     let target_out = &self.basis[*row_out_idx];
                     let mut coeff = Scalar::zero();
                     if left.as_ref() == Some(target_out) {
@@ -582,7 +604,7 @@ where
                             NonEmpty::from_vec(left_word).expect("Know that it is not empty");
                         let Some(next) = self
                             .quiver_with_mon_relations
-                            .multiply_basis_elts(&BasisElt::Path(left_word), &value)
+                            .multiply_basis_elts::<OP_ALG_HH>(&BasisElt::Path(left_word), &value)
                         else {
                             continue;
                         };
@@ -593,7 +615,7 @@ where
                             NonEmpty::from_vec(right_word).expect("Know that it is not empty");
                         let Some(next) = self
                             .quiver_with_mon_relations
-                            .multiply_basis_elts(&value, &BasisElt::Path(right_word))
+                            .multiply_basis_elts::<OP_ALG_HH>(&value, &BasisElt::Path(right_word))
                         else {
                             continue;
                         };
@@ -610,6 +632,8 @@ where
         matrix
     }
 
+    /// Return the highest degree in which any Bardzell chain exists, or `None` if no chains
+    /// have been found (e.g. the algebra is hereditary). Calls [`build_chains`](Self::build_chains).
     pub fn maximal_possible_hh_degree(&mut self) -> Option<usize> {
         self.build_chains();
         self.ap
@@ -666,22 +690,10 @@ mod tests {
     use std::sync::Arc;
 
     use crate::quiver_algebra::{
-        checked_arith::Field, quiver::Quiver, quiver_with_mon_rels::QuiverWithMonomialRelations,
+        quiver::Quiver, quiver_with_mon_rels::QuiverWithMonomialRelations,
     };
 
     use super::MonomialQuiverAlgebraHH;
-
-    impl Field for f64 {
-        fn zero() -> Self {
-            0.0
-        }
-        fn one() -> Self {
-            1.0
-        }
-        fn inv(self) -> Self {
-            1.0 / self
-        }
-    }
 
     fn hh_dims(
         hh: &mut MonomialQuiverAlgebraHH<&'static str, &'static str, f64>,

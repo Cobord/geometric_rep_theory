@@ -11,3 +11,7 @@ petgraph = "0.8.3"
 nalgebra = "0.33"
 itertools = "0.14.0"
 qhull = "0.4.0"
+num = "0.4.3"
+
+[dev-dependencies]
+proptest = "1.11.0"
