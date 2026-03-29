@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT"
 description = "Algebraic and geometric structures arising in mathematical physics and mirror symmetry."
+repository = "https://github.com/Cobord/geometric_rep_theory"
+documentation = "https://docs.rs/geometric_rep_theory"
 
 [dependencies]
 nonempty = "0.12.0"
