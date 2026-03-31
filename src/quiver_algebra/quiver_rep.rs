@@ -299,6 +299,79 @@ where
         }
         Ok(mat_returned.expect("It has been set now"))
     }
+
+    /// Apply a gauge transformation (change of basis at each vertex) to the representation.
+    ///
+    /// For each vertex `v`, `gauge_transformation[v]` is the pair `(g_v⁻¹, g_v)` — the caller
+    /// must supply both the matrix and its inverse, since the code does not compute inverses.
+    ///
+    /// For each edge `a: src → tgt`, the edge map is updated by:
+    /// ```text
+    /// M_a' = g[src].0 · M_a · g[tgt].1
+    ///      = g_src⁻¹ · M_a · g_tgt
+    /// ```
+    /// Vertices absent from the map are treated as having the identity transformation.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` if any matrix multiplication fails (e.g. shape mismatch).
+    #[allow(clippy::missing_panics_doc)]
+    pub fn gauge_transform(
+        &mut self,
+        gauge_transformation: &HashMap<VertexLabel, (MatrixType, MatrixType)>,
+    ) -> Result<(), CheckedArithError<MatrixType>> {
+        for a in self.quiver().edge_labels().cloned().collect::<Vec<_>>() {
+            let old_rep = self.get_edge_rep(&a).cloned();
+            let new_rep;
+            let (src, tgt) = self
+                .quiver()
+                .edge_endpoint_labels(&a)
+                .expect("This is an edge of the quiver");
+            let src_transform = gauge_transformation.get(&src).map(|z| z.0.clone());
+            let tgt_transform = gauge_transformation.get(&tgt).map(|z| z.1.clone());
+            match (src_transform, tgt_transform) {
+                (None, None) => {
+                    new_rep = None;
+                }
+                (None, Some(tgt_transform)) => {
+                    if let Some(old_rep) = old_rep {
+                        new_rep = Some(
+                            ChainMultiplyable::mul_two(old_rep, tgt_transform.clone())
+                                .map_err(CheckedArithError::from_mul)?,
+                        );
+                    } else {
+                        new_rep = Some(tgt_transform.clone());
+                    }
+                }
+                (Some(src_inv), None) => {
+                    let to_set;
+                    if let Some(old_rep) = old_rep {
+                        to_set = ChainMultiplyable::mul_two(src_inv, old_rep)
+                            .map_err(CheckedArithError::from_mul)?;
+                    } else {
+                        to_set = src_inv;
+                    }
+                    new_rep = Some(to_set);
+                }
+                (Some(src_inv), Some(tgt_transform)) => {
+                    let to_set;
+                    if let Some(old_rep) = old_rep {
+                        to_set = src_inv
+                            .chain_multiply_after([old_rep, tgt_transform.clone()])
+                            .map_err(CheckedArithError::from_mul)?;
+                    } else {
+                        to_set = ChainMultiplyable::mul_two(src_inv, tgt_transform.clone())
+                            .map_err(CheckedArithError::from_mul)?;
+                    }
+                    new_rep = Some(to_set);
+                }
+            }
+            if let Some(to_set) = new_rep {
+                self.set_edge_rep(&a, to_set);
+            }
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]

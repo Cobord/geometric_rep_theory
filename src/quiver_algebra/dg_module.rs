@@ -8,7 +8,7 @@ use num::Integer;
 
 use crate::quiver_algebra::{
     DegreeLabel, HasHomologicalDegree,
-    checked_arith::{ChainMultiplyable, CheckedAdd, CheckedAddAssign, Ring},
+    checked_arith::{ChainMultiplyable, CheckedAdd, CheckedAddAssign, CheckedArithError, Ring},
     dg_path_algebra::GradedDifferentialQuiver,
     quiver_rep::QuiverRep,
 };
@@ -79,6 +79,34 @@ where
     /// The degree-+1 endomorphism `d_M` at vertex `v`, or `None` if `v` is not in the module.
     pub fn vertex_differential(&self, v: &VertexLabel) -> Option<&MatrixType> {
         self.vertex_differentials.get(v)
+    }
+
+    /// Apply a gauge transformation to the DG-module.
+    ///
+    /// The arrow maps in `rep` are updated exactly as in [`QuiverRep::gauge_transform`].
+    /// Each vertex differential is conjugated:
+    /// ```text
+    /// d_M'_v = g_v⁻¹ · d_{M,v} · g_v = gauge[v].0 · d_{M,v} · gauge[v].1
+    /// ```
+    /// Vertices absent from `gauge_transformation` are left unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` if any matrix multiplication fails (e.g. shape mismatch).
+    pub fn gauge_transform(
+        &mut self,
+        gauge_transformation: &HashMap<VertexLabel, (MatrixType, MatrixType)>,
+    ) -> Result<(), CheckedArithError<MatrixType>> {
+        self.rep.gauge_transform(gauge_transformation)?;
+        for (v, delta) in &mut self.vertex_differentials {
+            if let Some((g_inv, g)) = gauge_transformation.get(v) {
+                *delta = g_inv
+                    .clone()
+                    .chain_multiply_after([delta.clone(), g.clone()])
+                    .map_err(CheckedArithError::from_mul)?;
+            }
+        }
+        Ok(())
     }
 
     /// Check the Leibniz compatibility condition for each arrow `a`
@@ -299,5 +327,83 @@ mod tests {
             failing.sort_by_key(|e| e.name().clone());
             assert_eq!(failing, vec![y1.clone(), y2.clone()]);
         }
+    }
+
+    // Two vertices u (1D) and v (2D), one arrow a: u→v of degree 0.
+    //
+    // ρ(a) = [[1],[1]]  (2×1)
+    // d_M_u = [[0]]              (1×1 zero, trivially squares to zero)
+    // d_M_v = [[0,0],[1,0]]      (lower triangular: e1 degree 0, e2 degree 1,
+    //                             d maps e1→e2; squares to zero)
+    //
+    // Gauge: g_u = [[2]], g_u⁻¹ = [[1/2]]
+    //        g_v = diag(2,3), g_v⁻¹ = diag(1/2, 1/3)
+    //
+    // Expected (mul_two(A,B) = B·A, so chain is g·M·g⁻¹):
+    //   ρ(a)' = g_v · ρ(a) · g_u⁻¹ = [[1],[3/2]]
+    //   d_M_v' = g_v · d_M_v · g_v⁻¹ = [[0,0],[3/2,0]]
+    //   d_M_u' = [[0]]  (unchanged)
+    #[test]
+    fn gauge_transform_two_vertex_arrow() {
+        use crate::quiver_algebra::{DegreeLabel, DynMatrix, Quiver, QuiverRep};
+        use nalgebra::DMatrix;
+
+        let a = DegreeLabel::new("a".to_string(), 0i64);
+        let mut q: Quiver<&str, DegreeLabel<String>> = Quiver::new();
+        q.add_edge("u", "v", a.clone());
+        let q_arc = Arc::new(q);
+
+        let rho_a = DynMatrix(DMatrix::from_vec(2, 1, vec![1.0_f64, 1.0]));
+        let edge_reps = [(a.clone(), rho_a)].into_iter().collect();
+        let vertex_dims = [("u", 1usize), ("v", 2usize)].into_iter().collect();
+        let rep = QuiverRep::new(q_arc.clone(), edge_reps, vertex_dims, |n| {
+            DynMatrix::zeros(n, n)
+        })
+        .unwrap();
+
+        // d_M_v = [[0,0],[1,0]], column-major: col0=[0,1], col1=[0,0]
+        let d_v = DynMatrix(DMatrix::from_vec(2, 2, vec![0.0, 1.0, 0.0, 0.0]));
+        let d_u = DynMatrix(DMatrix::from_vec(1, 1, vec![0.0]));
+        let vertex_diffs = [("u", d_u), ("v", d_v)].into_iter().collect();
+
+        let is_zero = |m: &DynMatrix<f64>| m.0.iter().all(|&x| x.abs() < 1e-10);
+        let mut module = DGModule::<_, _, _, true>::new(rep, vertex_diffs, Some(is_zero)).unwrap();
+
+        // gauge["u"] = (g_u⁻¹, g_u) = ([[1/2]], [[2]])
+        // gauge["v"] = (g_v⁻¹, g_v) = (diag(1/2,1/3), diag(2,3))
+        let g_u_inv = DynMatrix(DMatrix::from_vec(1, 1, vec![0.5]));
+        let g_u = DynMatrix(DMatrix::from_vec(1, 1, vec![2.0]));
+        // g_v = diag(2,3): col0=[2,0], col1=[0,3]
+        let g_v = DynMatrix(DMatrix::from_vec(2, 2, vec![2.0, 0.0, 0.0, 3.0]));
+        // g_v⁻¹ = diag(1/2,1/3): col0=[1/2,0], col1=[0,1/3]
+        let g_v_inv = DynMatrix(DMatrix::from_vec(2, 2, vec![0.5, 0.0, 0.0, 1.0 / 3.0]));
+
+        let gauge = [("u", (g_u_inv, g_u)), ("v", (g_v_inv, g_v))]
+            .into_iter()
+            .collect();
+        module
+            .gauge_transform(&gauge)
+            .map_err(|_| ())
+            .expect("gauge transform succeeds");
+
+        // ρ(a)' = [[1],[3/2]]
+        let expected_rho = DynMatrix(DMatrix::from_vec(2, 1, vec![1.0, 1.5]));
+        let actual_rho = module.rep().get_edge_rep(&a).unwrap();
+        assert!(
+            (actual_rho.0.clone() - &expected_rho.0).abs().max() < 1e-10,
+            "ρ(a)' wrong: got {actual_rho:?}"
+        );
+
+        // d_M_u' = [[0]]  (unchanged)
+        let actual_du = module.vertex_differential(&"u").unwrap();
+        assert!(is_zero(actual_du), "d_M_u should stay zero");
+
+        // d_M_v' = [[0,0],[3/2,0]], column-major: col0=[0,3/2], col1=[0,0]
+        let expected_dv = DynMatrix(DMatrix::from_vec(2, 2, vec![0.0, 1.5, 0.0, 0.0]));
+        let actual_dv = module.vertex_differential(&"v").unwrap();
+        assert!(
+            (actual_dv.0.clone() - &expected_dv.0).abs().max() < 1e-10,
+            "d_M_v' wrong: got {actual_dv:?}"
+        );
     }
 }
