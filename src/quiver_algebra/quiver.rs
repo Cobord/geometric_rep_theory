@@ -427,24 +427,24 @@ where
     /// which has new adjoint arrows for every arrow of `Q`
     /// and new framing arrows from every vertex of `Q` from a new vertex.
     /// If `framings_daggered` is `true` then the framing arrows also get adjoints going the other way.
-    /// 
+    ///
     /// So for example
-    /// 
+    ///
     /// If `Q` is
-    /// 
-    /// ```
+    ///
+    /// ```text
     /// alpha -> beta -> gamma
     /// ```
-    /// 
+    ///
     /// then `Q^heart` (with `framings_daggered` = false) is
-    /// 
-    /// ```
+    ///
+    /// ```text
     ///  alpha <-> beta <-> gamma
     ///   ^         ^         ^
     ///   |         |         |
     ///  alpha*    beta*    gamma*
     /// ```
-    /// 
+    ///
     /// When `framings_daggered` = true, `Q^heart` also has
     /// arrows `alpha -> alpha*`, `beta -> beta*`, and `gamma -> gamma*`.
     #[allow(clippy::type_complexity)]

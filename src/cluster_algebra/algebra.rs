@@ -292,6 +292,10 @@ where
     pub fn vertex_index(&self, vertex: &VertexLabel) -> Option<usize> {
         self.vertices_sorted.iter().position(|v| v == vertex)
     }
+
+    pub fn simplify(&mut self, reduce_fractions: impl FnMut(&mut (Coeffs, Coeffs))) {
+        self.seed.iter_mut().for_each(reduce_fractions);
+    }
 }
 
 #[cfg(test)]
