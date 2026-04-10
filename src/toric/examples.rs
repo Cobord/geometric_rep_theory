@@ -144,12 +144,3 @@ impl ToricFan {
         })
     }
 }
-
-pub fn main_examples() {
-    for (fan_name, fan) in ToricFan::common_cases() {
-        println!(
-            "Example Fan {fan_name}: {:?}",
-            fan.iter_cones().collect::<Vec<_>>()
-        );
-    }
-}
