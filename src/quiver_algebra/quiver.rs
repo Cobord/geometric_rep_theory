@@ -425,8 +425,28 @@ where
     ///
     /// This takes a quiver `Q` and produces a new quiver `Q^heart`
     /// which has new adjoint arrows for every arrow of `Q`
-    /// and new framing arrows from every vertex of `Q` to a new vertex.
-    /// If `framings_daggered` is `true` then the framing arrows also get adjoints going back the other way.
+    /// and new framing arrows from every vertex of `Q` from a new vertex.
+    /// If `framings_daggered` is `true` then the framing arrows also get adjoints going the other way.
+    /// 
+    /// So for example
+    /// 
+    /// If `Q` is
+    /// 
+    /// ```
+    /// alpha -> beta -> gamma
+    /// ```
+    /// 
+    /// then `Q^heart` (with `framings_daggered` = false) is
+    /// 
+    /// ```
+    ///  alpha <-> beta <-> gamma
+    ///   ^         ^         ^
+    ///   |         |         |
+    ///  alpha*    beta*    gamma*
+    /// ```
+    /// 
+    /// When `framings_daggered` = true, `Q^heart` also has
+    /// arrows `alpha -> alpha*`, `beta -> beta*`, and `gamma -> gamma*`.
     #[allow(clippy::type_complexity)]
     pub fn heartify(
         self,
@@ -443,10 +463,10 @@ where
         let mut new_framing_arrows = Vec::with_capacity(vertices.len());
         for vertex in vertices {
             let (new_edge_label, new_vertex) = framing_creation(&vertex);
-            new_self.add_edge(vertex.clone(), new_vertex.clone(), new_edge_label.clone());
+            new_self.add_edge(new_vertex.clone(), vertex.clone(), new_edge_label.clone());
             if framings_daggered {
                 let dagger_edge = dagger(&new_edge_label);
-                new_self.add_edge(new_vertex.clone(), vertex, dagger_edge.clone());
+                new_self.add_edge(vertex, new_vertex.clone(), dagger_edge.clone());
                 new_framing_arrows.push((new_edge_label, new_vertex, Some(dagger_edge)));
             } else {
                 new_framing_arrows.push((new_edge_label, new_vertex, None));
@@ -455,6 +475,10 @@ where
         (new_self, adjoint_pairs, new_framing_arrows)
     }
 
+    /// The Ginzburg construction on a quiver.
+    /// This can be thought of as like `heartify` with `framings_daggered = false`
+    /// but with all the framing vertices being
+    /// identified with the original vertices, so that the framing arrows become self-loops.
     pub(crate) fn ginzburgify(
         self,
         dagger: impl Fn(&EdgeLabel) -> EdgeLabel,
