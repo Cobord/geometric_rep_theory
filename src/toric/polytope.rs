@@ -623,6 +623,40 @@ impl<const N: usize> ConvexPolytope<N> {
 }
 
 impl ConvexPolytope<2> {
+    #[allow(clippy::must_use_candidate)]
+    /// The name of a manifold constructed from each of the
+    /// 16 reflexive polygons in ℝ², in the same order as returned by [`reflexive_2d`].
+    /// The names are not intrinsic to the polygons, but are included here for easy reference in tests and examples.
+    /// The names are associated to a space built using either homogeneous lift or toric fan
+    /// (not consistently one or the other)
+    /// startingfrom the polygon, not the polygon itself.
+    pub const fn reflexive_2d_names() -> [&'static str; 16] {
+        [
+            "C3 / Z3 times Z3 (1,0,2) (0,1,2)",
+            "C3 / Z4 times Z2 (1,0,3) (0,1,1)",
+            "L_1,3,1 / Z2",
+            "C / Z2 times Z2 (1,0,0,1) (0,1,1,0) PdP5",
+            "PdP4b",
+            "PdP4a",
+            "C3/Z6 (1,2,3) PdP_3a",
+            "SPP/Z2 (0,1,1,1) PdP_3c",
+            "PdP_3b",
+            "dP_3",
+            "PdP_2",
+            "dP_2",
+            "C3 / Z_4 (1,1,2) Y^2,2",
+            "dP_1",
+            "calC / Z2 (1,1,1,1) F0",
+            "C3 / Z3 (1,1,1) dP_0",
+        ]
+    }
+
+    #[allow(clippy::must_use_candidate)]
+    pub fn reflexive_2d_by_name(name: &str) -> Option<Self> {
+        let idx = Self::reflexive_2d_names().iter().position(|&n| n == name)?;
+        Some(Self::reflexive_2d().nth(idx)?.1)
+    }
+
     /// Iterate over all 16 reflexive polygons in ℝ², each paired with its name.
     ///
     /// Each polygon is constructed lazily: the constructor for element `k` is only called
@@ -652,62 +686,62 @@ impl ConvexPolytope<2> {
     // 3-vertex polygons
     fn polygon_01() -> (String, Self) {
         (
-            "C3 / Z3 times Z3 (1,0,2) (0,1,2)".to_string(),
+            Self::reflexive_2d_names()[0].to_string(),
             ConvexPolytope::new(vec![[-1, 2], [-1, -1], [2, -1]]).expect("valid"),
         )
     }
     fn polygon_02() -> (String, Self) {
         (
-            "C3 / Z4 times Z2 (1,0,3) (0,1,1)".to_string(),
+            Self::reflexive_2d_names()[1].to_string(),
             ConvexPolytope::new(vec![[1, 0], [-1, -2], [-1, 2]]).expect("valid"),
         )
     }
     fn polygon_03() -> (String, Self) {
         (
-            "L_1,3,1 / Z2".to_string(),
+            Self::reflexive_2d_names()[2].to_string(),
             ConvexPolytope::new(vec![[1, 0], [1, -1], [-1, -1], [-1, 2]]).expect("valid"),
         )
     }
     fn polygon_04() -> (String, Self) {
         (
-            "C / Z2 times Z2 (1,0,0,1) (0,1,1,0) PdP5".to_string(),
+            Self::reflexive_2d_names()[3].to_string(),
             ConvexPolytope::new(vec![[-1, 1], [-1, -1], [1, -1], [1, 1]]).expect("valid"),
         )
     }
 
     fn polygon_05() -> (String, Self) {
         (
-            "PdP4b".to_string(),
+            Self::reflexive_2d_names()[4].to_string(),
             ConvexPolytope::new(vec![[1, 0], [0, -1], [-1, -1], [-1, 2]]).expect("valid"),
         )
     }
     fn polygon_06() -> (String, Self) {
         (
-            "PdP4a".to_string(),
+            Self::reflexive_2d_names()[5].to_string(),
             ConvexPolytope::new(vec![[1, 0], [1, -1], [-1, -1], [-1, 1], [0, 1]]).expect("valid"),
         )
     }
     fn polygon_07() -> (String, Self) {
         (
-            "C3/Z6 (1,2,3) PdP_3a".to_string(),
+            Self::reflexive_2d_names()[6].to_string(),
             ConvexPolytope::new(vec![[1, 0], [-1, -1], [-1, 2]]).expect("valid"),
         )
     }
     fn polygon_08() -> (String, Self) {
         (
-            "SPP/Z2 (0,1,1,1) PdP_3c".to_string(),
+            Self::reflexive_2d_names()[7].to_string(),
             ConvexPolytope::new(vec![[1, 0], [0, -1], [-1, 0], [-1, 2]]).expect("valid"),
         )
     }
     fn polygon_09() -> (String, Self) {
         (
-            "PdP_3b".to_string(),
+            Self::reflexive_2d_names()[8].to_string(),
             ConvexPolytope::new(vec![[1, 0], [0, -1], [-1, -1], [-1, 1], [0, 1]]).expect("valid"),
         )
     }
     fn polygon_10() -> (String, Self) {
         (
-            "dP_3".to_string(),
+            Self::reflexive_2d_names()[9].to_string(),
             ConvexPolytope::new(vec![[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]])
                 .expect("valid"),
         )
@@ -715,37 +749,37 @@ impl ConvexPolytope<2> {
 
     fn polygon_11() -> (String, Self) {
         (
-            "PdP_2".to_string(),
+            Self::reflexive_2d_names()[10].to_string(),
             ConvexPolytope::new(vec![[1, 0], [0, -1], [-1, -1], [-1, 1]]).expect("valid"),
         )
     }
     fn polygon_12() -> (String, Self) {
         (
-            "dP_2".to_string(),
+            Self::reflexive_2d_names()[11].to_string(),
             ConvexPolytope::new(vec![[1, 0], [0, -1], [-1, -1], [-1, 0], [0, 1]]).expect("valid"),
         )
     }
     fn polygon_13() -> (String, Self) {
         (
-            "C3 / Z_4 (1,1,2) Y^2,2".to_string(),
+            Self::reflexive_2d_names()[12].to_string(),
             ConvexPolytope::new(vec![[1, 0], [-1, -1], [-1, 1]]).expect("valid"),
         )
     }
     fn polygon_14() -> (String, Self) {
         (
-            "dP_1".to_string(),
+            Self::reflexive_2d_names()[13].to_string(),
             ConvexPolytope::new(vec![[1, 0], [-1, -1], [-1, 0], [0, 1]]).expect("valid"),
         )
     }
     fn polygon_15() -> (String, Self) {
         (
-            "calC / Z2 (1,1,1,1) F0".to_string(),
+            Self::reflexive_2d_names()[14].to_string(),
             ConvexPolytope::new(vec![[1, 0], [0, -1], [-1, 0], [0, 1]]).expect("valid"),
         )
     }
     fn polygon_16() -> (String, Self) {
         (
-            "C3 / Z3 (1,1,1) dP_0".to_string(),
+            Self::reflexive_2d_names()[15].to_string(),
             ConvexPolytope::new(vec![[1, 0], [-1, -1], [0, 1]]).expect("valid"),
         )
     }
@@ -1033,7 +1067,12 @@ mod test {
     #[test]
     fn reflexive_2d_are_reflexive() {
         use super::ConvexPolytope;
-        for (name, poly) in ConvexPolytope::reflexive_2d() {
+        let all_names = ConvexPolytope::reflexive_2d_names();
+        for ((name, poly), expected_name) in ConvexPolytope::reflexive_2d().zip(all_names) {
+            assert!(
+                name == expected_name,
+                "Expected name {expected_name} but got {name}"
+            );
             assert!(poly.contains_origin(), "{name}: origin not in interior");
             let dual = poly
                 .polar_dual()
