@@ -5,6 +5,9 @@ where
     VertexLabel: std::hash::Hash + Eq + Clone,
     EdgeLabel: std::hash::Hash + Eq + Clone,
 {
+    /// Take the disjoint union of `times` copies of this quiver,
+    /// where the vertex and edge labels are tagged with the index
+    /// of the copy they come from.
     #[allow(clippy::type_complexity, clippy::missing_panics_doc)]
     pub fn repeat(self, times: usize) -> Quiver<(VertexLabel, usize), (EdgeLabel, usize)> {
         if times == 0 {
