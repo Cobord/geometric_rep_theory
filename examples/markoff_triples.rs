@@ -48,9 +48,11 @@ fn main() {
     markoff_cluster_algebra.simplify(simplifier);
     let xyz_values = markoff_cluster_algebra.view_cluster(["x", "y", "z"]);
     assert_eq!(xyz_values, [(1, 1), (2, 1), (1, 1)]);
-    markoff_cluster_algebra.mutate(&"z");
-    markoff_cluster_algebra.mutate(&"x");
-    markoff_cluster_algebra.mutate(&"y");
+
+    markoff_cluster_algebra = markoff_cluster_algebra
+        .mutated(&"z")
+        .mutated(&"x")
+        .mutated(&"y");
     markoff_cluster_algebra.simplify(simplifier);
     let xyz_values = markoff_cluster_algebra.view_cluster(["x", "y", "z"]);
     assert_eq!(xyz_values, [(29, 1), (433, 1), (5, 1)]);

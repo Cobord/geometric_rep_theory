@@ -264,6 +264,12 @@ where
         }
     }
 
+    #[must_use = "This is the version of mutate for method chaining so you have to use the result"]
+    pub fn mutated(mut self, vertex: &VertexLabel) -> Self {
+        self.mutate(vertex);
+        self
+    }
+
     /// Give the values for the cluster variables at the specified vertices.
     /// The result is a pair of coefficients (numerator, denominator),
     /// Numerator and Denominator are subtraction free expressions built from the initial seed variables.

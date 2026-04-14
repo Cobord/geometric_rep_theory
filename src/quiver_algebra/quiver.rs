@@ -76,6 +76,30 @@ where
         self.e_labels.insert(label, idx);
     }
 
+    /// Reverse the orientation of the given edge
+    #[allow(clippy::missing_panics_doc)]
+    pub fn flip_edge(&mut self, label: EdgeLabel) {
+        if let Some(idx) = self.e_labels.remove(&label) {
+            let (from_idx, to_idx) = self
+                .p
+                .edge_endpoints(idx)
+                .expect("This is an arrow of the quiver");
+            if self.count_parallel_pairs > 0 {
+                let other_arrows_connecting = self.p.edges_connecting(from_idx, to_idx);
+                if other_arrows_connecting.count() > 1 {
+                    self.count_parallel_pairs -= 1;
+                }
+            }
+            self.p.remove_edge(idx);
+            let cur_edge = self.p.edges_connecting(to_idx, from_idx);
+            if cur_edge.count() != 0 {
+                self.count_parallel_pairs += 1;
+            }
+            let idx = self.p.add_edge(to_idx, from_idx, label.clone());
+            self.e_labels.insert(label, idx);
+        }
+    }
+
     #[must_use = "Use the count of nodes in the quiver"]
     pub fn num_vertices(&self) -> usize {
         self.p.node_count()
@@ -97,8 +121,19 @@ where
     }
 
     /// Remove an edge from the quiver by its label. Returns `true` if the edge was present.
+    #[allow(clippy::missing_panics_doc)]
     pub fn remove_edge(&mut self, edge: &EdgeLabel) -> bool {
         if let Some(edge_idx) = self.e_labels.remove(edge) {
+            if self.count_parallel_pairs > 0 {
+                let (from_idx, to_idx) = self
+                    .p
+                    .edge_endpoints(edge_idx)
+                    .expect("This is an arrow of the quiver");
+                let other_arrows_connecting = self.p.edges_connecting(from_idx, to_idx);
+                if other_arrows_connecting.count() > 1 {
+                    self.count_parallel_pairs -= 1;
+                }
+            }
             self.p.remove_edge(edge_idx);
             true
         } else {
@@ -493,6 +528,65 @@ where
             new_self.add_edge(v.clone(), v, loop_label);
         }
         (new_self, adjoint_pairs, new_self_loops)
+    }
+
+    #[must_use = "Take the difference of these two for the difference of dimensions of Hom and Ext spaces
+    between representations with dimension vectors `d_vec` and `e_vec`.
+    For the actual value the caller has to do the subtraction themselves
+    because we want to choose the sort of signed integers for casts."]
+    #[allow(clippy::missing_panics_doc)]
+    pub fn euler_ringel_pairing(
+        &self,
+        e_vec: &HashMap<VertexLabel, usize>,
+        d_vec: &HashMap<VertexLabel, usize>,
+    ) -> (usize, usize) {
+        let mut sum_top = 0;
+        for v in self.vertex_labels() {
+            let d_v = d_vec.get(v).copied().unwrap_or(0);
+            let e_v = e_vec.get(v).copied().unwrap_or(0);
+            sum_top += d_v * e_v;
+        }
+        let mut sum_bottom = 0;
+        for edge in self.edge_labels() {
+            let (src, tgt) = self
+                .edge_endpoint_labels(edge)
+                .expect("This is an edge of the quiver");
+            let d_tgt = d_vec.get(&tgt).copied().unwrap_or(0);
+            let e_src = e_vec.get(&src).copied().unwrap_or(0);
+            sum_bottom += d_tgt * e_src;
+        }
+        (sum_top, sum_bottom)
+    }
+}
+
+impl<VertexLabel, EdgeLabel> PartialEq for Quiver<VertexLabel, EdgeLabel>
+where
+    VertexLabel: std::hash::Hash + Eq + Clone,
+    EdgeLabel: Eq + std::hash::Hash + Clone,
+{
+    fn eq(&self, other: &Self) -> bool {
+        let same_vertices = self.vertex_labels().count() == other.vertex_labels().count()
+            && self.vertex_labels().all(|v| other.contains_vertex(v));
+        if !same_vertices {
+            return false;
+        }
+        let same_edges = self.edge_labels().count() == other.edge_labels().count()
+            && self.edge_labels().all(|e| other.contains_edge(e));
+        if !same_edges {
+            return false;
+        }
+        for edge in self.edge_labels() {
+            let (src, tgt) = self
+                .edge_endpoint_labels(edge)
+                .expect("This is an edge of the quiver");
+            let (other_src, other_tgt) = other
+                .edge_endpoint_labels(edge)
+                .expect("This is an edge of the quiver");
+            if src != other_src || tgt != other_tgt {
+                return false;
+            }
+        }
+        true
     }
 }
 
