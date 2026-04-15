@@ -1,7 +1,5 @@
-mod checked_arith;
 mod dg_module;
 mod dg_path_algebra;
-mod dyn_matrix;
 mod dynkin;
 mod hochschild;
 mod homological_degree;
@@ -13,12 +11,8 @@ mod quiver_rep;
 mod quiver_with_mon_rels;
 mod quiver_with_rels;
 
-pub use checked_arith::{
-    ChainMultiplyable, CheckedAdd, CheckedAddAssign, CheckedArithError, Field, Ring, SemiRing,
-};
 pub use dg_module::DGModule;
 pub use dg_path_algebra::GradedDifferentialQuiver;
-pub use dyn_matrix::{DynMatrix, ShapeMismatch};
 pub use hochschild::{HochschildError, MonomialQuiverAlgebraHH};
 pub use homological_degree::{DegreeLabel, HasHomologicalDegree};
 pub use path_algebra::PathAlgebra;

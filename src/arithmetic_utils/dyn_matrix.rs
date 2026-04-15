@@ -3,7 +3,7 @@ use std::ops::{Add, AddAssign, Mul, MulAssign, Neg};
 use nalgebra::DMatrix;
 use num::{One, Zero};
 
-use crate::quiver_algebra::checked_arith::{ChainMultiplyable, CheckedAdd, CheckedAddAssign};
+use super::checked_arith::{ChainMultiplyable, CheckedAdd, CheckedAddAssign};
 
 /// A wrapper around [`nalgebra::DMatrix<T>`] that implements the [`CheckedMul`] and [`CheckedAdd`]
 /// families of traits, returning [`ShapeMismatch`] errors instead of panicking when matrix

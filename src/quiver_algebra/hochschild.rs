@@ -6,8 +6,8 @@ use std::{
 
 use nonempty::NonEmpty;
 
+use crate::arithmetic_utils::Field;
 use crate::quiver_algebra::{
-    checked_arith::Field,
     quiver::BasisElt,
     quiver_with_mon_rels::{NonMonomialIdeal, QuiverWithMonomialRelations},
     quiver_with_rels::QuiverWithRelations,
@@ -663,7 +663,7 @@ where
             .map(|degree| self.cochain_dim(degree))
             .collect::<Vec<_>>();
         let ranks = (0..=max_degree)
-            .map(|degree| super::checked_arith::rank(&self.differential_matrix(degree)))
+            .map(|degree| crate::arithmetic_utils::rank(&self.differential_matrix(degree)))
             .collect::<Vec<_>>();
 
         let mut hh = HashMap::<CohomologicalDegree, usize>::new();

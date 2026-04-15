@@ -2,8 +2,8 @@ use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
 use nalgebra::DMatrix;
 
+use crate::arithmetic_utils::{Field,Ring};
 use crate::quiver_algebra::{
-    checked_arith::{Field, Ring},
     quiver::BasisElt,
     quiver_with_mon_rels::{NonMonomialIdeal, QuiverWithMonomialRelations},
     quiver_with_rels::QuiverWithRelations,

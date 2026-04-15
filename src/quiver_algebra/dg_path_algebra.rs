@@ -4,8 +4,9 @@ use nonempty::NonEmpty;
 use num::Integer;
 
 use crate::quiver_algebra::{
-    BasisElt, DegreeLabel, HasHomologicalDegree, PathAlgebra, Quiver, Ring,
+    BasisElt, DegreeLabel, HasHomologicalDegree, PathAlgebra, Quiver,
 };
+use crate::arithmetic_utils::Ring;
 
 /// A differential graded path algebra `(kQ, d)`.
 ///

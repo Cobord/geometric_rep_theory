@@ -1,4 +1,5 @@
-use crate::quiver_algebra::{checked_arith::Ring, path_algebra::PathAlgebra, quiver::BasisElt};
+use crate::arithmetic_utils::Ring;
+use crate::quiver_algebra::{path_algebra::PathAlgebra, quiver::BasisElt};
 
 // Standard homological degrees for the Ginzburg DG-algebra:
 //   original arrows a  →  degree  0

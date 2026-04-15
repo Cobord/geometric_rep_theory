@@ -5,7 +5,7 @@ use std::{
     sync::Arc,
 };
 
-use crate::quiver_algebra::checked_arith::Ring;
+use crate::arithmetic_utils::Ring;
 use crate::quiver_algebra::quiver::{BasisElt, Quiver};
 
 #[must_use]
@@ -737,8 +737,9 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::arithmetic_utils::Ring;
     use crate::quiver_algebra::{
-        PathAlgebra, Quiver, Ring,
+        PathAlgebra, Quiver,
         quiver::tests::{
             arbitrary_basis_element, make_ginzburg_quiver, make_kronecker_quiver,
             testing_arbitrary_quiver,

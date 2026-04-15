@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use nonempty::NonEmpty;
 
-use crate::quiver_algebra::checked_arith::{
+use crate::arithmetic_utils::{
     ChainMultiplyable, CheckedAdd, CheckedAddAssign, CheckedArithError, Ring,
 };
 use crate::quiver_algebra::path_algebra::PathAlgebra;
@@ -617,7 +617,7 @@ mod tests {
     /// mat_from_path_algebra on any path must produce the zero matrix of the right shape.
     #[test]
     fn zero_rep_triangle_mat_from_path_algebra() {
-        use crate::quiver_algebra::dyn_matrix::DynMatrix;
+        use crate::arithmetic_utils::DynMatrix;
         use crate::quiver_algebra::path_algebra::PathAlgebra;
         use crate::quiver_algebra::quiver::BasisElt;
         use nonempty::nonempty;
@@ -703,7 +703,7 @@ mod tests {
     ///   [ab,bc,ca] = M(ca)·M(bc)·M(ab)            = [[2]]         (1×1)
     #[test]
     fn nonzero_rep_triangle_mat_from_path() {
-        use crate::quiver_algebra::dyn_matrix::DynMatrix;
+        use crate::arithmetic_utils::DynMatrix;
         use crate::quiver_algebra::path_algebra::PathAlgebra;
         use crate::quiver_algebra::quiver::BasisElt;
         use nalgebra::DMatrix;

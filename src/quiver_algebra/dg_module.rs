@@ -6,9 +6,9 @@ use std::{
 
 use num::Integer;
 
+use crate::arithmetic_utils::{ChainMultiplyable, CheckedAdd, CheckedAddAssign, CheckedArithError, Ring};
 use crate::quiver_algebra::{
     DegreeLabel, HasHomologicalDegree,
-    checked_arith::{ChainMultiplyable, CheckedAdd, CheckedAddAssign, CheckedArithError, Ring},
     dg_path_algebra::GradedDifferentialQuiver,
     quiver_rep::QuiverRep,
 };
@@ -345,7 +345,8 @@ mod tests {
     //   d_M_u' = [[0]]  (unchanged)
     #[test]
     fn gauge_transform_two_vertex_arrow() {
-        use crate::quiver_algebra::{DegreeLabel, DynMatrix, Quiver, QuiverRep};
+        use crate::arithmetic_utils::DynMatrix;
+        use crate::quiver_algebra::{DegreeLabel, Quiver, QuiverRep};
         use nalgebra::DMatrix;
 
         let a = DegreeLabel::new("a".to_string(), 0i64);

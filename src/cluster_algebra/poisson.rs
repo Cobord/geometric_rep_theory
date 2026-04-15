@@ -2,7 +2,7 @@ use std::ops::{AddAssign, Mul, Neg};
 
 use num::Zero;
 
-use crate::quiver_algebra::SemiRing;
+use crate::arithmetic_utils::SemiRing;
 
 use super::algebra::ClusterAlgebra;
 

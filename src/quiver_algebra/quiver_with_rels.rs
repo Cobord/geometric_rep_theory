@@ -1,7 +1,7 @@
 use std::{collections::HashMap, ops::MulAssign, sync::Arc};
 
+use crate::arithmetic_utils::{ChainMultiplyable, CheckedAdd, CheckedAddAssign, Ring};
 use crate::quiver_algebra::{
-    checked_arith::{ChainMultiplyable, CheckedAdd, CheckedAddAssign, Ring},
     path_algebra::PathAlgebra,
     quiver::{BasisElt, Quiver},
     quiver_rep::QuiverRep,

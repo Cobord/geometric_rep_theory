@@ -2,8 +2,8 @@ use std::{collections::HashSet, fmt::Debug, sync::Arc};
 
 use nonempty::NonEmpty;
 
+use crate::arithmetic_utils::Field;
 use crate::quiver_algebra::{
-    checked_arith::Field,
     hochschild::IndexInList,
     quiver::{BasisElt, Quiver},
     quiver_with_rels::QuiverWithRelations,
