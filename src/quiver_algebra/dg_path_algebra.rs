@@ -3,10 +3,8 @@ use std::{collections::HashMap, sync::Arc};
 use nonempty::NonEmpty;
 use num::Integer;
 
-use crate::quiver_algebra::{
-    BasisElt, DegreeLabel, HasHomologicalDegree, PathAlgebra, Quiver,
-};
 use crate::arithmetic_utils::Ring;
+use crate::quiver_algebra::{BasisElt, DegreeLabel, HasHomologicalDegree, PathAlgebra, Quiver};
 
 /// A differential graded path algebra `(kQ, d)`.
 ///

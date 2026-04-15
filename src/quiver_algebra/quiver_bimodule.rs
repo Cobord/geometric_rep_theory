@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
 use nalgebra::DMatrix;
 
-use crate::arithmetic_utils::{Field,Ring};
+use crate::arithmetic_utils::{Field, Ring};
 use crate::quiver_algebra::{
     quiver::BasisElt,
     quiver_with_mon_rels::{NonMonomialIdeal, QuiverWithMonomialRelations},

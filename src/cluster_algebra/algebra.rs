@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::quiver_algebra::Quiver;
 use crate::arithmetic_utils::SemiRing;
+use crate::quiver_algebra::Quiver;
 
 /// A cluster algebra of rank `N` with exchange graph encoded as a quiver.
 ///

@@ -3,7 +3,6 @@ mod cone;
 mod cone_errors;
 mod examples;
 mod fan;
-mod integer_arith;
 mod polytope;
 mod toric_ideal;
 

@@ -6,10 +6,11 @@ use std::{
 
 use num::Integer;
 
-use crate::arithmetic_utils::{ChainMultiplyable, CheckedAdd, CheckedAddAssign, CheckedArithError, Ring};
+use crate::arithmetic_utils::{
+    ChainMultiplyable, CheckedAdd, CheckedAddAssign, CheckedArithError, Ring,
+};
 use crate::quiver_algebra::{
-    DegreeLabel, HasHomologicalDegree,
-    dg_path_algebra::GradedDifferentialQuiver,
+    DegreeLabel, HasHomologicalDegree, dg_path_algebra::GradedDifferentialQuiver,
     quiver_rep::QuiverRep,
 };
 

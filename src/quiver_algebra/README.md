@@ -94,16 +94,6 @@ A left DG-module M over a `GradedDifferentialQuiver` `(kQ, d_kQ)`. Pairs a `Quiv
 - `leibniz_compatible` — checks `d_{t(a)} ∘ ρ(a) = (−1)^|a| ρ(a) ∘ d_{s(a)} + ρ(d(a))` for each arrow
 - `differential_squares_zero` — checks `d_{M,v}² = 0` at every vertex
 
-### `DynMatrix<T>`
-
-A wrapper around `nalgebra::DMatrix<T>` implementing the `CheckedAdd`, `CheckedAddAssign`, and `ChainMultiplyable` traits with dimension-mismatch errors instead of panics. Multiplication is reversed (opposite algebra convention), matching the `OP_ALG = true` path algebra convention.
-
-### Checked arithmetic traits
-
-- `Ring` / `SemiRing` / `Field` — algebraic hierarchy for coefficient types
-- `CheckedAdd` / `CheckedAddAssign` — fallible addition returning a shape-mismatch error
-- `ChainMultiplyable` — fallible matrix multiplication: `mul_two(A, B)` computes A then B
-
 ## Dependencies
 
 - [`petgraph`](https://crates.io/crates/petgraph) — quiver graph structure
@@ -111,3 +101,4 @@ A wrapper around `nalgebra::DMatrix<T>` implementing the `CheckedAdd`, `CheckedA
 - [`nonempty`](https://crates.io/crates/nonempty) — non-empty collections
 - [`num`](https://crates.io/crates/num) — `Integer` trait for Koszul sign parity checks
 - [`itertools`](https://crates.io/crates/itertools) — iterator utilities
+- [`arithmetic_utils`](../arithmetic_utils/README.md) — `Ring`/`SemiRing`/`Field`, `DynMatrix`, checked arithmetic traits

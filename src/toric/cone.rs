@@ -2,9 +2,8 @@ use itertools::Itertools;
 use nalgebra::{Complex, ComplexField, DMatrix, DVector};
 use std::collections::HashSet;
 
-use crate::toric::{
-    cell_util::CachedOnce, cone_errors::ConeError, integer_arith::primitive_vector,
-};
+use crate::arithmetic_utils::primitive_vector;
+use crate::toric::{cell_util::CachedOnce, cone_errors::ConeError};
 
 type FacetIdces = Vec<usize>;
 

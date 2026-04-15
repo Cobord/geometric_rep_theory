@@ -1,10 +1,11 @@
 #![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
 
+use num::integer::gcd;
 use std::fmt::{Debug, Display};
 
+use crate::arithmetic_utils::kernel_from_snf;
 use crate::toric::cone::RationalPolyhedralCone;
 use crate::toric::fan::ToricFan;
-use crate::toric::integer_arith::{gcd, kernel_from_snf};
 
 /// Errors returned by toric coordinate ring computations.
 #[derive(PartialEq, Eq, Debug)]

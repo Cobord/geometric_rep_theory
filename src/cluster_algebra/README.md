@@ -56,4 +56,5 @@ Key methods:
 
 ## Dependencies
 
-- [`quiver_algebra`](../quiver_algebra/README.md) — `Quiver` and `SemiRing` from the parent module
+- [`quiver_algebra`](../quiver_algebra/README.md) — `Quiver`
+- [`arithmetic_utils`](../arithmetic_utils/README.md) — `SemiRing` for subtraction-free cluster variable arithmetic

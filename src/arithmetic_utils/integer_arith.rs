@@ -1,16 +1,8 @@
 use nalgebra::{DMatrix, DVector};
-
-pub(crate) fn gcd(mut a: i64, mut b: i64) -> i64 {
-    while b != 0 {
-        let r = a % b;
-        a = b;
-        b = r;
-    }
-    a.abs()
-}
+use num::integer::gcd;
 
 #[allow(dead_code)]
-pub(crate) fn normalize(v: &mut [i64]) {
+fn normalize(v: &mut [i64]) {
     let mut g = 0;
     for &x in v.iter() {
         g = gcd(g, x);
@@ -38,7 +30,7 @@ fn identity(n: usize) -> ZSquare {
 }
 
 #[allow(dead_code)]
-pub(crate) fn identity_matrix(n: usize) -> DMatrix<i64> {
+fn identity_matrix(n: usize) -> DMatrix<i64> {
     let mut mat = DMatrix::zeros(n, n);
     for idx in 0..n {
         mat[idx * n + idx] = 1;

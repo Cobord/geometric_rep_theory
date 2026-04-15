@@ -202,6 +202,23 @@ pub trait SemiRing:
     + One
     + Zero
 {
+    /// The natural inclusion of `n ∈ ℕ` into the semiring
+    /// e.g. `n`-fold addition of `1`.
+    #[must_use = "A new element in the semiring is returned"]
+    fn natural_inclusion(n: usize) -> Self {
+        if n == 0 {
+            return Self::zero();
+        }
+        if n == 1 {
+            return Self::one();
+        }
+        let half = Self::natural_inclusion(n / 2);
+        let mut result = half.clone() + half;
+        if n % 2 == 1 {
+            result += Self::one();
+        }
+        result
+    }
 }
 
 impl<T> SemiRing for T where
