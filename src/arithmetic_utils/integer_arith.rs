@@ -120,6 +120,33 @@ fn smith_normal_form(a: &mut ZMatrix) -> ZSquare {
     v
 }
 
+/// Möbius function μ(n).
+/// Returns 0 if n has a squared prime factor, otherwise (−1)^k where k is the
+/// number of distinct prime factors of n.
+#[allow(dead_code)]
+pub(crate) fn mobius(n: usize) -> i8 {
+    if n == 1 {
+        return 1;
+    }
+    let mut m = n;
+    let mut k: i8 = 0;
+    let mut d = 2usize;
+    while d * d <= m {
+        if m.is_multiple_of(d) {
+            k += 1;
+            m /= d;
+            if m.is_multiple_of(d) {
+                return 0;
+            }
+        }
+        d += 1;
+    }
+    if m > 1 {
+        k += 1;
+    }
+    if k % 2 == 0 { 1 } else { -1 }
+}
+
 pub fn kernel_from_snf<const N: usize>(mut a: ZMatrix) -> Vec<[i64; N]> {
     let v = smith_normal_form(&mut a);
 

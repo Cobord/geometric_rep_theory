@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign},
+    ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign},
 };
 
 use num::{One, Zero};
@@ -10,7 +10,7 @@ use crate::plethystic::LambdaRing;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PowerSumPolynomial {
-    partition: Vec<usize>,
+    pub(crate) partition: Vec<usize>,
 }
 
 impl PowerSumPolynomial {
@@ -19,6 +19,7 @@ impl PowerSumPolynomial {
         let mut partition = partition;
         partition.sort_unstable();
         partition.reverse();
+        partition.retain(|k| *k > 0);
         Self { partition }
     }
 
@@ -50,12 +51,13 @@ impl Mul<Self> for PowerSumPolynomial {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SymmetricFunction<Coeffs: Ring> {
-    l: HashMap<PowerSumPolynomial, Coeffs>,
+    pub(crate) l: HashMap<PowerSumPolynomial, Coeffs>,
 }
 
 impl<Coeffs: Ring> SymmetricFunction<Coeffs> {
     #[must_use = "A new symmetric function is returned"]
-    pub fn new(l: HashMap<PowerSumPolynomial, Coeffs>) -> Self {
+    pub fn new(mut l: HashMap<PowerSumPolynomial, Coeffs>) -> Self {
+        l.retain(|_k, v| !v.is_zero());
         Self { l }
     }
 
@@ -70,18 +72,26 @@ impl<Coeffs: Ring> SymmetricFunction<Coeffs> {
         let l = self
             .l
             .into_iter()
-            .map(|(p, c)| (p, Coeffs2::from(c)))
+            .filter_map(|(p, c)| {
+                let c2 = Coeffs2::from(c);
+                if c2.is_zero() { None } else { Some((p, c2)) }
+            })
             .collect();
         SymmetricFunction { l }
     }
 
     /// Scale all coefficients by a common factor.
-    pub fn scale_by<S: Clone>(&mut self, scalar: S)
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn scale_by<S: Clone + Zero>(&mut self, scalar: S)
     where
         Coeffs: MulAssign<S>,
     {
-        for c in self.l.values_mut() {
-            *c *= scalar.clone();
+        if scalar.is_zero() {
+            self.l.clear();
+        } else {
+            for c in self.l.values_mut() {
+                *c *= scalar.clone();
+            }
         }
     }
 
@@ -203,11 +213,22 @@ impl<Coeffs: Ring + Div<usize, Output = Coeffs>> Div<usize> for SymmetricFunctio
     }
 }
 
+impl<Coeffs: Ring + DivAssign<usize>> DivAssign<usize> for SymmetricFunction<Coeffs> {
+    fn div_assign(&mut self, rhs: usize) {
+        for c in self.l.values_mut() {
+            *c /= rhs;
+        }
+    }
+}
+
 impl<Coeffs: Ring + Div<usize, Output = Coeffs>> LambdaRing for SymmetricFunction<Coeffs> {
     /// `ψ^n` acts directly on the p-basis: `p_λ ↦ p_{n·λ}` (multiply every part by n).
     fn psi(self, n: usize) -> Self {
         if n == 0 {
-            return Self::one();
+            let total = self.l.into_values().fold(Coeffs::zero(), |acc, c| acc + c);
+            let mut result = Self::one();
+            result.scale_by(total);
+            return result;
         }
         let l = self
             .l
@@ -251,80 +272,10 @@ impl<Coeffs: Ring + Div<usize, Output = Coeffs>> LambdaRing for SymmetricFunctio
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
-    use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign};
-
-    /// Rational coefficients backed by f64, with the two extra ops that
-    /// SymmetricFunction<Z> acting on SymmetricFunction<Q> requires:
-    ///   - Div<usize>  so that SymmetricFunction<Q>: LambdaRing
-    ///   - MulAssign<i64> so that SymmetricFunction<Q>: MulAssign<i64>
-    #[derive(Debug, Clone, PartialEq)]
-    struct Q(f64);
-
-    impl Add for Q {
-        type Output = Q;
-        fn add(self, r: Q) -> Q {
-            Q(self.0 + r.0)
-        }
-    }
-    impl AddAssign for Q {
-        fn add_assign(&mut self, r: Q) {
-            self.0 += r.0;
-        }
-    }
-    impl Sub for Q {
-        type Output = Q;
-        fn sub(self, r: Q) -> Q {
-            Q(self.0 - r.0)
-        }
-    }
-    impl SubAssign for Q {
-        fn sub_assign(&mut self, r: Q) {
-            self.0 -= r.0;
-        }
-    }
-    impl Mul for Q {
-        type Output = Q;
-        fn mul(self, r: Q) -> Q {
-            Q(self.0 * r.0)
-        }
-    }
-    impl MulAssign for Q {
-        fn mul_assign(&mut self, r: Q) {
-            self.0 *= r.0;
-        }
-    }
-    impl Neg for Q {
-        type Output = Q;
-        fn neg(self) -> Q {
-            Q(-self.0)
-        }
-    }
-    impl num::Zero for Q {
-        fn zero() -> Q {
-            Q(0.0)
-        }
-        fn is_zero(&self) -> bool {
-            self.0 == 0.0
-        }
-    }
-    impl num::One for Q {
-        fn one() -> Q {
-            Q(1.0)
-        }
-    }
-    impl Div<usize> for Q {
-        type Output = Q;
-        fn div(self, n: usize) -> Q {
-            Q(self.0 / n as f64)
-        }
-    }
-    impl MulAssign<i64> for Q {
-        fn mul_assign(&mut self, n: i64) {
-            self.0 *= n as f64;
-        }
-    }
+    use crate::plethystic::test_utils::{Q, approx_eq};
+    use std::ops::MulAssign;
 
     impl MulAssign<i64> for SymmetricFunction<Q> {
         fn mul_assign(&mut self, scalar: i64) {
@@ -338,17 +289,6 @@ mod tests {
     }
 
     use proptest::prelude::*;
-
-    const EPS: f64 = 1e-9;
-
-    fn approx_eq(a: &SymmetricFunction<Q>, b: &SymmetricFunction<Q>) -> bool {
-        let all_keys = a.l.keys().chain(b.l.keys());
-        all_keys.into_iter().all(|k| {
-            let va = a.l.get(k).map_or(0.0, |q| q.0);
-            let vb = b.l.get(k).map_or(0.0, |q| q.0);
-            (va - vb).abs() < EPS
-        })
-    }
 
     proptest! {
 
