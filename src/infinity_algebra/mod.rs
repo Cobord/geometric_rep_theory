@@ -1,5 +1,6 @@
 mod a_infinity;
 mod dga;
+mod dgla;
 mod errors;
 mod exterior_power;
 mod graded_module;
@@ -9,6 +10,7 @@ mod tensor_power;
 
 pub use a_infinity::AInfinityAlgebra;
 pub use dga::DGA;
+pub use dgla::{DGLA, Lie};
 pub use errors::InfinityAlgebraError;
 pub use exterior_power::ExteriorPower;
 pub use graded_module::GradedModule;

@@ -1,3 +1,5 @@
+use std::ops::Div;
+
 use super::errors::InfinityAlgebraError;
 use crate::arithmetic_utils::Ring;
 use crate::infinity_algebra::exterior_power::ExteriorPower;
@@ -160,6 +162,47 @@ where
             result += tree.eval_refs_l::<Self, Coeffs>(&pure_wedge)? * coeff;
         }
         Ok(result)
+    }
+
+    /// `sum 1/k!*l_k(a...a)`
+    /// You either put an explicit upper bound for the sum
+    /// and the caller must reason about the actual satisfaction
+    /// of the full Maurer-Cartan equation themselves.
+    /// Or it takes the sum up to `max_nonzero_arity`
+    /// which is a (potentially coarse) upper bound for which `l_n`
+    /// are actually contributing.
+    /// This also does not enforce that `a` is of degree `\pm 1`
+    ///
+    /// # Errors
+    /// - If there is no upper bound provided and there is no coarse upper bound from `max_nonzero_arity`
+    /// - If the dispatching from `l_n_slice` cannot go to the appropriate `l_n_one_term`
+    fn truncated_maurer_cartan(
+        self,
+        ctx: Self::Ctx,
+        up_to_n: Option<usize>,
+    ) -> Result<Self, InfinityAlgebraError>
+    where
+        Self: Clone + Div<Coeffs, Output = Self>,
+    {
+        let up_to_n = up_to_n.unwrap_or({
+            let max_arity = Self::max_nonzero_arity();
+            if let Some(max_arity) = max_arity {
+                max_arity
+            } else {
+                return Err(InfinityAlgebraError::ArityTooLarge(0));
+            }
+        });
+        let mut to_return = Self::zero(ctx);
+        let mut inputs = Vec::with_capacity(up_to_n);
+        for _ in 0..up_to_n {
+            inputs.push(self.clone());
+        }
+        let mut idx_factorial = Coeffs::one();
+        for idx in 1..up_to_n {
+            to_return += (Self::l_n_slice(&inputs[0..idx])?) / idx_factorial.clone();
+            idx_factorial *= Coeffs::natural_inclusion(idx + 1);
+        }
+        Ok(to_return)
     }
 }
 
