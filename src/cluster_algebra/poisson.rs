@@ -26,6 +26,11 @@ where
     VertexLabel: std::hash::Hash + Eq + Clone,
     EdgeLabel: Eq + std::hash::Hash + Clone,
     Coeffs: SemiRing,
+    // For the full poisson bracket on arbitrary pairs of `Coeffs`
+    // Need `BaseRing` to be included into `Coeffs` as data not property.
+    // But to just define the poisson bracket within any
+    // pair `{x_i, x_j}` for cluster `{x_1,....x_N}`
+    // it only needs to be in `BaseRing`.
     BaseRing: Zero
         + Neg<Output = BaseRing>
         + PartialEq

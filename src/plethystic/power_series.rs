@@ -51,6 +51,35 @@ impl<Coeffs: Ring, const N: usize> PowerSeries<Coeffs, N> {
     fn total_degree(alpha: &[usize; N]) -> usize {
         alpha.iter().sum()
     }
+
+    #[must_use = "Differentiating the power series D^d_op (self = sum_beta c_beta x^beta)"]
+    #[allow(clippy::similar_names)]
+    pub fn differentiate(&self, d_op: [usize; N]) -> Self {
+        let mut to_return = Self::zero();
+        for (x_pow, coeff) in &self.terms {
+            if x_pow
+                .iter()
+                .zip(d_op)
+                .any(|(from_x, from_d)| from_d > *from_x)
+            {
+                continue;
+            }
+            let my_power = core::array::from_fn(|idx| x_pow[idx] - d_op[idx]);
+            let mut terms = HashMap::with_capacity(1);
+            let mut integer_brought_down = 1;
+            for idx in 0..N {
+                let cur_x_power = x_pow[idx];
+                let cur_d_power = d_op[idx];
+                integer_brought_down *=
+                    (0..cur_d_power).fold(1, |acc, d_fall| acc * (cur_x_power - d_fall));
+            }
+            let integer_brought_down = Coeffs::natural_inclusion(integer_brought_down);
+            terms.insert(my_power, integer_brought_down * coeff.clone());
+            let cur_contrib = PowerSeries { terms };
+            to_return += cur_contrib;
+        }
+        to_return
+    }
 }
 
 impl<Coeffs: Ring, const N: usize> Zero for PowerSeries<Coeffs, N> {
@@ -267,5 +296,65 @@ impl<Coeffs: Ring + Div<usize, Output = Coeffs>, const N: usize> AdamsIncreases
     /// so `f ∈ S^{>=m}` implies `ψ^n(f) ∈ S^{>=n·m}`.
     fn psi_bound(psi_n: usize, f_filtration: usize) -> usize {
         psi_n * f_filtration
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PowerSeries;
+    use num::Zero;
+    use std::collections::HashMap;
+
+    // f = 3·x^9·y^5 + 2·x^2·y^1 + 5·x^4·y^0 + 7·x^5·y^9
+    fn sample_series() -> PowerSeries<i64, 2> {
+        PowerSeries::new(HashMap::from([
+            ([9, 5], 3i64),
+            ([2, 1], 2i64),
+            ([4, 0], 5i64),
+            ([5, 9], 7i64),
+        ]))
+    }
+
+    // D_x^3 D_y^7: every term vanishes except 7·x^5·y^9.
+    // Terms that vanish:
+    //   3·x^9·y^5 : D_y^7 needs y-exp >= 7, but y-exp is 5 → gone
+    //   2·x^2·y^1 : D_x^3 needs x-exp >= 3, but x-exp is 2 → gone
+    //   5·x^4·y^0 : D_y^7 needs y-exp >= 7, but y-exp is 0 → gone
+    // Surviving term 7·x^5·y^9:
+    //   D_x^3(x^5) = 5·4·3·x^2 = 60·x^2
+    //   D_y^7(y^9) = 9·8·7·6·5·4·3·y^2 = 181440·y^2
+    //   coefficient = 7 · 60 · 181440 = 76204800
+    #[test]
+    fn differentiate_large_alpha_kills_terms() {
+        let f = sample_series();
+        let result = f.differentiate([3, 7]);
+        let expected = PowerSeries::new(HashMap::from([([2, 2], 76_204_800i64)]));
+        assert_eq!(result, expected);
+    }
+
+    // D_x^3 D_y^7 applied to a series where ALL terms are killed → zero.
+    #[test]
+    fn differentiate_all_terms_killed_gives_zero() {
+        let f: PowerSeries<i64, 2> = PowerSeries::new(HashMap::from([
+            ([9, 5], 3i64), // y-exp 5 < 7 → gone
+            ([2, 1], 2i64), // x-exp 2 < 3 → gone
+            ([4, 0], 5i64), // y-exp 0 < 7 → gone
+        ]));
+        let result = f.differentiate([3, 7]);
+        assert!(result.is_zero());
+    }
+
+    // D_x^0 D_y^2: alpha_x = 0 acts as identity on x, only y-differentiation applies.
+    // On sample_series():
+    //   3·x^9·y^5 → 3·1·(5·4)·x^9·y^3 = 60·x^9·y^3
+    //   2·x^2·y^1 : y-exp 1 < 2 → gone
+    //   5·x^4·y^0 : y-exp 0 < 2 → gone
+    //   7·x^5·y^9 → 7·1·(9·8)·x^5·y^7 = 504·x^5·y^7
+    #[test]
+    fn differentiate_zero_component_acts_as_identity() {
+        let f = sample_series();
+        let result = f.differentiate([0, 2]);
+        let expected = PowerSeries::new(HashMap::from([([9, 3], 60i64), ([5, 7], 504i64)]));
+        assert_eq!(result, expected);
     }
 }

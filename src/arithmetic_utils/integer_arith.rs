@@ -147,6 +147,31 @@ pub(crate) fn mobius(n: usize) -> i8 {
     if k % 2 == 0 { 1 } else { -1 }
 }
 
+/// Binomial coefficient C(n, k).
+#[must_use = "n choose k"]
+pub fn binom(n: usize, k: usize) -> usize {
+    if k > n {
+        return 0;
+    }
+    let k = k.min(n - k);
+    (1..=k).fold(1usize, |acc, i| acc * (n - k + i) / i)
+}
+
+/// Iterator over all multi-indices β with `0 ≤ β[i] ≤ upper[i]` for each i,
+/// in lexicographic order.
+pub fn multi_index_le<const N: usize>(upper: [usize; N]) -> impl Iterator<Item = [usize; N]> {
+    let sizes = upper.map(|d| d + 1);
+    let total: usize = sizes.iter().product();
+    (0..total).map(move |mut flat| {
+        let mut beta = [0usize; N];
+        for i in (0..N).rev() {
+            beta[i] = flat % sizes[i];
+            flat /= sizes[i];
+        }
+        beta
+    })
+}
+
 pub fn kernel_from_snf<const N: usize>(mut a: ZMatrix) -> Vec<[i64; N]> {
     let v = smith_normal_form(&mut a);
 
