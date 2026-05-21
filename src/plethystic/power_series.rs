@@ -9,6 +9,9 @@ use crate::plethystic::generating_series::{AdamsIncreases, FilteredSemiRing};
 
 /// Formal power series in `N` variables over `Coeffs`,
 /// stored as a map from exponent vectors to nonzero coefficients.
+/// But we only ever keep finitely many terms because it will always be truncated
+/// at some point. However we are still calling them `PowerSeries`
+/// instead of multivariate polynomials because of the filtration context.
 ///
 /// The filtration is by total degree: `S^{>=k}` consists of series
 /// whose every monomial has total degree `≥ k`.
@@ -58,7 +61,7 @@ impl<Coeffs: Ring, const N: usize> Zero for PowerSeries<Coeffs, N> {
     }
 
     fn is_zero(&self) -> bool {
-        self.terms.is_empty() || self.terms.values().all(Coeffs::is_zero)
+        self.terms.values().all(Coeffs::is_zero)
     }
 }
 
@@ -76,6 +79,7 @@ impl<Coeffs: Ring, const N: usize> AddAssign for PowerSeries<Coeffs, N> {
                 .and_modify(|e| *e += c.clone())
                 .or_insert(c);
         }
+        self.terms.retain(|_k, v| !v.is_zero());
     }
 }
 
@@ -95,6 +99,7 @@ impl<Coeffs: Ring, const N: usize> SubAssign for PowerSeries<Coeffs, N> {
                 .and_modify(|e| *e -= c.clone())
                 .or_insert(-c);
         }
+        self.terms.retain(|_k, v| !v.is_zero());
     }
 }
 
