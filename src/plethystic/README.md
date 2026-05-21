@@ -3,7 +3,7 @@
 This module implements the ring of symmetric functions Λ and the plethystic
 substitution action of Λ on any λ-ring.
 
-## Structures
+## Traits
 
 ### `LambdaRing`
 
@@ -30,6 +30,35 @@ n · λ^n = Σ_{k=1}^{n} (-1)^{k-1} ψ^k · λ^{n-k}
 
 Seeing that defining `ψ^n` from `λ^n` does not require anything beyond the `Ring` bound already present but the other direction requires division by `n`, we see
 that `ψ^n` is given a default implementation and `λ^n` must be provided instead of vice versa.
+
+### `FilteredSemiRing`
+
+A `SemiRing` with a descending filtration `S^{>=0} ⊇ S^{>=1} ⊇ …` compatible
+with the ring operations. Requires `truncate_at(n)` and `truncates_to_zero_at(n)`;
+provides a default `maximal_filtration()`. Used by the generating series functions
+to control convergence of infinite sums.
+
+### `AdamsIncreases`
+
+A refinement of `FilteredSemiRing` asserting that the Adams operation ψ^n raises
+filtration: `f ∈ S^{>=m}` implies `ψ^n(f) ∈ S^{>=n·m}`. Provides the bound
+`psi_bound(n, m) = n·m` by default. Used by `plethystic_exp` and `plethystic_log`
+to bound how quickly higher-order terms contribute.
+
+## Structures
+
+### `PowerSeries<Coeffs: Ring, const N: usize>`
+
+A multivariate formal power series (in practice always truncated) in N variables
+over `Coeffs`, stored as a `HashMap<[usize; N], Coeffs>` from exponent vectors to
+nonzero coefficients. Filtration is by total degree.
+
+Implements `Ring`, `Zero`, `One`, `FilteredSemiRing`, `LambdaRing` (when
+`Coeffs: Div<usize, Output=Coeffs>`), and `AdamsIncreases`.
+
+Key method: `differentiate(d_op: [usize; N]) -> Self` — applies the differential
+operator D^{d_op} = ∏ ∂^{d_i}/∂x_i^{d_i} via the falling factorial formula. Used
+by the `oper` module as the coefficient ring for `DifferentialOperator`.
 
 ### `PowerSumPolynomial`
 
@@ -94,6 +123,15 @@ The `MulAssign<A>` impl cannot be provided generically (it would conflict with
 | `SymmetricFunction::coerce_coeffs::<B>()` | Coefficient-wise coercion via `B: From<A>` |
 | `SymmetricFunction::scale_by(scalar)` | In-place scalar multiplication |
 | `From<Coeffs> for SymmetricFunction<Coeffs>` | Embed a constant as the p_∅ = 1 term |
+
+## Generating series functions
+
+| Function | Description |
+|---|---|
+| `plethystic_exp(f)` | Plethystic exponential Exp(f); requires f ∈ S^{>=1} |
+| `plethystic_log(f)` | Plethystic logarithm Log(f); requires f − 1 ∈ S^{>=1} |
+| `truncated_exponential::<N>(x)` | Ordinary exponential truncated to degree N |
+| `truncated_log::<N>(x)` | Ordinary logarithm truncated to degree N |
 
 ## Dependencies
 

@@ -34,6 +34,14 @@ A dynamically-sized matrix wrapping `nalgebra::DMatrix<T>`, implementing `Checke
 
 ## Functions
 
+### `binom(n, k) -> usize`
+
+Binomial coefficient C(n, k), computed without overflow for moderate n via the multiplicative formula. Returns 0 if k > n.
+
+### `multi_index_le<const N>(upper: [usize; N]) -> impl Iterator<Item = [usize; N]>`
+
+Yields all multi-indices β with 0 ≤ β[i] ≤ upper[i] for each i, in lexicographic order. Used by `oper` to iterate over the β ≤ d summation in the Leibniz rule.
+
 ### `rank`
 
 Gaussian elimination over a `Field` coefficient type. Returns the row rank of a `&[Vec<Scalar>]` matrix. Used by the Hochschild cohomology computation to extract Betti numbers from chain complex differentials.

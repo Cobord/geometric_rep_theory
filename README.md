@@ -9,3 +9,4 @@ A Rust workspace for algebraic and geometric structures arising in mathematical 
 - [toric](src/toric/README.md) — rational polyhedral cones, toric fans, convex polytopes, and toric ideals
 - [cluster_algebra](src/cluster_algebra/README.md) — cluster algebras with quiver mutation and compatible Poisson structures
 - [plethystic](src/plethystic/README.md) — the ring of symmetric functions Λ in the power-sum basis, λ-rings, and the plethystic substitution action
+- [oper](src/oper/README.md) — differential operators on affine n-space

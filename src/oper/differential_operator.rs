@@ -382,4 +382,32 @@ mod tests {
         };
         assert_eq!(result, expected);
     }
+
+    // N=0: no variables, so every multi-index is [], every polynomial is a scalar,
+    // and DifferentialOperator<R, 0> ≅ R (the ring itself).
+    //
+    // differentiate([]) is identity: multi_index_le([]) yields only [],
+    // the empty binom-product is 1, D^[](p) = p, and γ = [].
+    //
+    // multiplication is scalar multiplication: differential_act sums
+    // p_[] · (rhs.differentiate([])) = p_[] · rhs, and left_mul(p_[]) scales
+    // rhs's single coefficient by p_[], giving p_[] * q_[].
+    #[test]
+    fn n_zero_operator_ring_is_scalars() {
+        let three: DifferentialOperator<i64, 0> = DifferentialOperator {
+            terms: HashMap::from([([], PowerSeries::new(HashMap::from([([], 3i64)])))]),
+        };
+        let five: DifferentialOperator<i64, 0> = DifferentialOperator {
+            terms: HashMap::from([([], PowerSeries::new(HashMap::from([([], 5i64)])))]),
+        };
+
+        let result_diff = three.clone().differentiate([]);
+        assert_eq!(result_diff, three.clone());
+
+        let result_mul = three * five;
+        let expected: DifferentialOperator<i64, 0> = DifferentialOperator {
+            terms: HashMap::from([([], PowerSeries::new(HashMap::from([([], 15i64)])))]),
+        };
+        assert_eq!(result_mul, expected);
+    }
 }
