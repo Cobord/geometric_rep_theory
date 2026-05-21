@@ -7,7 +7,7 @@ description = "Algebraic and geometric structures arising in mathematical physic
 repository = "https://github.com/Cobord/geometric_rep_theory"
 documentation = "https://docs.rs/geometric_rep_theory"
 readme = "README.md"
-keywords = ["quiver", "cluster-algebra", "toric", "homological-algebra", "representation", "differential-operators"]
+keywords = ["quiver", "cluster-algebra", "toric", "homological-algebra", "representation"]
 categories = ["mathematics", "science", "algorithms"]
 
 [dependencies]
