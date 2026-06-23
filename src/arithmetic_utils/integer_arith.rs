@@ -157,6 +157,70 @@ pub fn binom(n: usize, k: usize) -> usize {
     (1..=k).fold(1usize, |acc, i| acc * (n - k + i) / i)
 }
 
+/// The Kronecker symbol `(a|n)`, generalizing the Legendre/Jacobi symbol to
+/// any integer `n` (not just odd primes/positive odd integers): `(a|0)` is
+/// `1` if `a = ±1` and `0` otherwise, `(a|n)` for negative `n` folds in the
+/// sign via `(a|-1)`, and even `n` folds in the supplementary symbol
+/// `(a|2)` (`0` if `a` is even, `1` if `a ≡ ±1 (mod 8)`, `-1` if
+/// `a ≡ ±3 (mod 8)`). Computed via the same Euclidean-style reciprocity
+/// recursion as the Jacobi symbol, in `O(log(min(|a|, n)))`, without
+/// factoring `n`.
+#[must_use = "the Kronecker symbol (a|n)"]
+pub fn kronecker_symbol(a: i128, n: i128) -> i128 {
+    if n == 0 {
+        return i128::from(a == 1 || a == -1);
+    }
+    if n == 1 {
+        return 1;
+    }
+
+    let mut result = 1i128;
+    let mut n = n;
+    let mut a = a;
+
+    if n < 0 {
+        if a < 0 {
+            result = -result;
+        }
+        n = -n;
+    }
+
+    let mut twos = 0u32;
+    while n % 2 == 0 {
+        n /= 2;
+        twos += 1;
+    }
+    if twos > 0 {
+        let symbol_two: i128 = if a % 2 == 0 {
+            0
+        } else if matches!(a.rem_euclid(8), 1 | 7) {
+            1
+        } else {
+            -1
+        };
+        result *= symbol_two.pow(twos);
+    }
+    if result == 0 {
+        return 0;
+    }
+
+    a = a.rem_euclid(n);
+    while a != 0 {
+        while a % 2 == 0 {
+            a /= 2;
+            if matches!(n.rem_euclid(8), 3 | 5) {
+                result = -result;
+            }
+        }
+        std::mem::swap(&mut a, &mut n);
+        if a.rem_euclid(4) == 3 && n.rem_euclid(4) == 3 {
+            result = -result;
+        }
+        a = a.rem_euclid(n);
+    }
+    if n == 1 { result } else { 0 }
+}
+
 /// Iterator over all multi-indices β with `0 ≤ β[i] ≤ upper[i]` for each i,
 /// in lexicographic order.
 pub fn multi_index_le<const N: usize>(upper: [usize; N]) -> impl Iterator<Item = [usize; N]> {
@@ -220,4 +284,62 @@ pub(crate) fn primitive_vector(v: &[i64], sign_flippable: bool) -> Option<DVecto
     }
 
     Some(DVector::from_vec(prim))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::kronecker_symbol;
+
+    #[test]
+    fn edge_cases() {
+        assert_eq!(kronecker_symbol(1, 0), 1);
+        assert_eq!(kronecker_symbol(-1, 0), 1);
+        assert_eq!(kronecker_symbol(2, 0), 0);
+        assert_eq!(kronecker_symbol(5, 1), 1);
+        assert_eq!(kronecker_symbol(0, 1), 1);
+        assert_eq!(kronecker_symbol(5, -1), 1);
+        assert_eq!(kronecker_symbol(-5, -1), -1);
+        assert_eq!(kronecker_symbol(0, -1), 1);
+    }
+
+    #[test]
+    fn supplementary_symbol_at_2() {
+        assert_eq!(kronecker_symbol(1, 2), 1); // 1 mod 8 = 1
+        assert_eq!(kronecker_symbol(3, 2), -1); // 3 mod 8 = 3
+        assert_eq!(kronecker_symbol(2, 2), 0); // even
+        assert_eq!(kronecker_symbol(5, 2), -1); // 5 mod 8 = 5
+        assert_eq!(kronecker_symbol(7, 2), 1); // 7 mod 8 = 7
+    }
+
+    #[test]
+    fn matches_legendre_symbol_for_odd_primes() {
+        assert_eq!(kronecker_symbol(2, 7), 1); // 3^2 = 9 = 2 (mod 7)
+        assert_eq!(kronecker_symbol(-3, 7), 1); // 7 = 1 (mod 3), splits
+        assert_eq!(kronecker_symbol(-3, 5), -1); // 5 = 2 (mod 3), inert
+        assert_eq!(kronecker_symbol(-3, 13), 1);
+        assert_eq!(kronecker_symbol(-3, 11), -1);
+    }
+
+    #[test]
+    fn matches_jacobi_symbol_for_odd_composite_n() {
+        assert_eq!(kronecker_symbol(8, 15), 1);
+        assert_eq!(kronecker_symbol(7, 15), -1);
+        assert_eq!(kronecker_symbol(1001, 9907), -1);
+    }
+
+    #[test]
+    fn multiplicative_in_second_argument() {
+        for &a in &[-7i128, -3, -1, 0, 1, 2, 5, 11] {
+            for n1 in -6i128..=6 {
+                for n2 in -6i128..=6 {
+                    if n1 == 0 || n2 == 0 {
+                        continue;
+                    }
+                    let lhs = kronecker_symbol(a, n1 * n2);
+                    let rhs = kronecker_symbol(a, n1) * kronecker_symbol(a, n2);
+                    assert_eq!(lhs, rhs, "a={a} n1={n1} n2={n2}");
+                }
+            }
+        }
+    }
 }
