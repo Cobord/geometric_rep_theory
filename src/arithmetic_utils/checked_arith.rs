@@ -219,6 +219,13 @@ pub trait SemiRing:
         }
         result
     }
+
+    #[must_use = "This is just wrapping mul and add. Not the actual combined instruction."]
+    fn mul_add(mut self, mul_by: Self, add_with: Self) -> Self {
+        self *= mul_by;
+        self += add_with;
+        self
+    }
 }
 
 impl<T> SemiRing for T where

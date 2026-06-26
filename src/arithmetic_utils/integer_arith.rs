@@ -221,6 +221,43 @@ pub fn kronecker_symbol(a: i128, n: i128) -> i128 {
     if n == 1 { result } else { 0 }
 }
 
+/// The divisor power-sum `sigma_3(n) = sum_{d|n} d^3`: the coefficient
+/// driving the `q`-expansion of the weight-`4` Eisenstein series `E4`.
+///
+/// `O(n)` trial division, recomputed from scratch on every call — no
+/// memoization, and no use of `sigma`'s multiplicativity. Fine for the
+/// handful of terms this is exercised with today, but a caller that walks
+/// many/large `n` (e.g. printing many `q`-expansion terms, or a Cauchy
+/// product like [`ProductModularForm`](crate::lattice::ProductModularForm)
+/// re-deriving `sigma_3(k)` for every `k` on every `extract_coeffs` call —
+/// worse still when nested, as in repeated squaring/cubing of a form) would
+/// need this to either cache results across calls, or compute it from `n`'s
+/// prime factorization instead (`sigma_k` is multiplicative, so `O(sqrt(n))`
+/// factorization plus a per-prime-power formula beats `O(n)` trial division
+/// for large `n`).
+#[allow(clippy::missing_panics_doc)]
+#[must_use = "the sum of cubes of the divisors of n"]
+pub fn sigma_3(n: usize) -> u128 {
+    (1..=n)
+        .filter(|d| n.is_multiple_of(*d))
+        .map(|d| u128::try_from(d).expect("usize fits in u128").pow(3))
+        .sum()
+}
+
+/// The divisor power-sum `sigma_5(n) = sum_{d|n} d^5`: the coefficient
+/// driving the `q`-expansion of the weight-`6` Eisenstein series `E6`.
+///
+/// Same `O(n)`-trial-division, no-memoization caveat as [`sigma_3`] — see
+/// there for what a fix would look like.
+#[allow(clippy::missing_panics_doc)]
+#[must_use = "the sum of fifth powers of the divisors of n"]
+pub fn sigma_5(n: usize) -> u128 {
+    (1..=n)
+        .filter(|d| n.is_multiple_of(*d))
+        .map(|d| u128::try_from(d).expect("usize fits in u128").pow(5))
+        .sum()
+}
+
 /// Iterator over all multi-indices β with `0 ≤ β[i] ≤ upper[i]` for each i,
 /// in lexicographic order.
 pub fn multi_index_le<const N: usize>(upper: [usize; N]) -> impl Iterator<Item = [usize; N]> {
