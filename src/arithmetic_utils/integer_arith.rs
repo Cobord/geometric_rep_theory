@@ -258,6 +258,42 @@ pub fn sigma_5(n: usize) -> u128 {
         .sum()
 }
 
+/// The `n`-th coefficient of Euler's function `prod_{k>=1} (1 - q^k)`, the
+/// `q`-expansion (minus its `q^{1/24}` prefactor) of the Dedekind eta
+/// function. By the pentagonal number theorem this is `0` unless `n` is a
+/// generalized pentagonal number `k*(3*k-1)/2` for some `k` in `Z`, in which
+/// case it's `(-1)^k`.
+///
+/// Solves `3*k^2 - k - 2*n = 0` for `k` directly
+/// (`k = (1 +- sqrt(1+24*n))/6`), an `O(1)` direct formula rather than
+/// searching or convolving an actual product of series — though, unlike
+/// [`sigma_3`]/[`sigma_5`], it goes via a floating-point `sqrt` rather than
+/// exact integer arithmetic, so its exactness for very large `n` rests on
+/// that rounding being correct rather than on integer-only operations.
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_wrap,
+    clippy::cast_possible_truncation
+)]
+#[must_use = "No point in computing"]
+pub fn euler_function_coeff(n: usize) -> i64 {
+    let n = n as i64;
+    let discriminant = 1 + 24 * n;
+    let sqrt_d = (discriminant as f64).sqrt().round() as i64;
+    if sqrt_d * sqrt_d != discriminant {
+        return 0;
+    }
+    for numerator in [1 + sqrt_d, 1 - sqrt_d] {
+        if numerator % 6 == 0 {
+            let k = numerator / 6;
+            if k * (3 * k - 1) / 2 == n {
+                return if k % 2 == 0 { 1 } else { -1 };
+            }
+        }
+    }
+    0
+}
+
 /// Iterator over all multi-indices β with `0 ≤ β[i] ≤ upper[i]` for each i,
 /// in lexicographic order.
 pub fn multi_index_le<const N: usize>(upper: [usize; N]) -> impl Iterator<Item = [usize; N]> {
