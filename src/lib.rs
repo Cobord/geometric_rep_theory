@@ -2,6 +2,7 @@ pub mod arithmetic_utils;
 pub mod cluster_algebra;
 pub mod infinity_algebra;
 pub mod lattice;
+pub mod modular;
 pub mod oper;
 pub mod plethystic;
 pub mod quiver_algebra;

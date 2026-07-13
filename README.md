@@ -11,3 +11,4 @@ A Rust workspace for algebraic and geometric structures arising in mathematical 
 - [plethystic](src/plethystic/README.md) — the ring of symmetric functions Λ in the power-sum basis, λ-rings, and the plethystic substitution action
 - [oper](src/oper/README.md) — differential operators on affine n-space
 - [lattice](src/lattice/README.md) — lattices in the sense of `\Z^n` equipped with extra structure
+- [modular](src/modular/README.md) — modular forms including half integral weights and multiplier systems
